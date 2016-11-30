@@ -5,7 +5,7 @@
 
 Automate your music uploads.
 
-### How does autotunes work? ###
+### How does uploafer work? (tldr: it doesn't) ###
 ### NOTE THAT THESE FEATURES DO NOT YET FUNCTION ###
 
 * Scans through your music directory, checking existing data against stored torrent hashes
