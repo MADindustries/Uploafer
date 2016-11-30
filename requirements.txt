@@ -1,0 +1,4 @@
+git+git://github.com/beetbox/beets.git
+discogs-client==2.2.1
+mechanize==0.2.5
+pylast==1.6.0
