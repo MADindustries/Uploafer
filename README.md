@@ -1,7 +1,7 @@
 # Uploafer #
-# Based on autotunes by whatbetter #
-# Modified for use by WM2 users only #
-# Origin: https://bitbucket.org/whatbetter/autotunes #
+## Based on autotunes by whatbetter ##
+## Modified for use by WM2 users only ##
+## Origin: https://bitbucket.org/whatbetter/autotunes ##
 
 Automate your music uploads.
 
