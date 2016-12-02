@@ -6,6 +6,8 @@ import logging as log
 from fuzzywuzzy import fuzz
 from wmapi import ReleaseInfo
 
+pthurl = 'https://passtheheadphones.me/'
+
 # TODO: Proper error handling
 
 def parseArgs():
@@ -54,21 +56,28 @@ def findRiFiles(wm2root):
 
 def main():
     args = parseArgs()
+    groupUrl=pthurl + 'torrents.php?id='
+    artistUrl=pthurl + 'artist.php?id='
     pth = whatapi.WhatAPI(args.username, args.password)
-    pthurl = 'https://passtheheadphones.me/torrents.php?id='
     for file in findRiFiles(args.wm2media):
         ri = loadReleaseInfo(file)
         artist = pth.request('artist', artistname=ri.group.musicInfo.artists.name)
         groups = pth.get_groups(artist['id'])
-        state = 'No match found for "{0}"'.format(ri.group.name)
+        found = False
         for group in groups:
             match = fuzz.ratio(ri.group.name, groups[group])
+            # Add match trumping
             if match == 100:
-                log.info('Exact match found for "{0}": {1}{2}'.format(ri.group.name, pthurl, group))
+                log.info('Exact match found for "{0}": {1}{2}'.format(ri.group.name, groupUrl, group))
+                found = True
                 break
             elif match > args.fuzzratio:
-                log.info('Possible ({0}%) match found for "{1}": {2}{3}'.format(match, ri.group.name, pthurl, group))
+                log.info('Possible ({0}%) match found for "{1}": {2}{3}'.format(match, ri.group.name, groupUrl, group))
+                found = True
                 break
+        if not found:
+            print 'POTENTIAL UPLOAD: No match found for "{0}".'.format(ri.group.name)
+            print 'Artist page for "{0}": {1}{2}'.format(artist['name'], artistUrl, artist['id'])
 
 
 

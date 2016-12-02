@@ -3,7 +3,7 @@
 ## Modified for use by WM2 users only ##
 ## Origin: https://bitbucket.org/whatbetter/autotunes ##
 
-Automate your music uploads. (and don't make the same mistakes everyone else did)
+Automate your music uploads. (and don't make the same mistake everyone else has)
 
 ### How does uploafer work? (tldr: it doesn't) ###
 ### NOTE THAT THESE FEATURES DO NOT YET FUNCTION ###
