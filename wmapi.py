@@ -56,6 +56,7 @@ class torrentInfo(object):
 
 class musicInfo(object):
     def __init__(self, mi):
+        # TODO: These need to support multiple entries at some point
         self.composers = miComposer(mi['composers'])
         self.dj = miDJ(mi['dj'])
         self.producer = miProducer(mi['producer'])
