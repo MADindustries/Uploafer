@@ -1,0 +1,4 @@
+*.pyc
+__pycache__
+tests.py
+ReleaseInfo2.txt
