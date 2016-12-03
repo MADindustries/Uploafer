@@ -59,18 +59,27 @@ def main():
     groupUrl=pthurl + 'torrents.php?id='
     artistUrl=pthurl + 'artist.php?id='
     pth = whatapi.WhatAPI(args.username, args.password)
+    # make a way to continue where left off
     for file in findRiFiles(args.wm2media):
         ri = loadReleaseInfo(file)
-        artist = pth.request('artist', artistname=ri.group.musicInfo.artists.name)
+        #debug
+        log.debug("Artist search: {0}".format(ri.group.musicInfo.artists.name))
+        try:
+            artist = pth.request('artist', artistname=ri.group.musicInfo.artists.name)
+            #what if more than one artist?
+        except:
+            print 'POTENTIAL UPLOAD: Failed to find artist "{0}"'.format(ri.group.musicInfo.artists.name)
+            continue
         groups = pth.get_groups(artist['id'])
         best_group = {'match': 0, 'group': ''}
         for group in groups:
-            match = fuzz.ratio(ri.group.name, groups[group])
-            # Add match trumping
+            name = groups[group]
+            match = fuzz.ratio(ri.group.name, name)
             # Add match intelligence
             if match > best_group['match']:
                 best_group['group'] = group
                 best_group['match'] = match
+                best_group['name'] = name
                 if match == 100:
                     break
         if best_group['match'] == 100:
@@ -78,8 +87,9 @@ def main():
         elif best_group['match'] > args.fuzzratio:
             log.info('Possible ({0}%) match found for "{1}": {2}{3}'.format(match, ri.group.name, groupUrl, group))
         else:
-            print 'POTENTIAL UPLOAD: Closest match for "{0}" scored {1}.'.format(ri.group.name, best_group['match'])
-            print 'Artist page for "{0}": {1}{2}'.format(artist['name'], artistUrl, artist['id'])
+            print 'POTENTIAL UPLOAD: Closest match for "{0}" ({1}) scored {2}.'.format(ri.group.name, ri.group.id, best_group['match'])
+            print '   Closest match: "{0}"'.format(best_group['name'])
+            print '   Artist page for "{0}": {1}{2}'.format(artist['name'], artistUrl, artist['id'])
             
 
 
