@@ -63,22 +63,24 @@ def main():
         ri = loadReleaseInfo(file)
         artist = pth.request('artist', artistname=ri.group.musicInfo.artists.name)
         groups = pth.get_groups(artist['id'])
-        found = False
+        best_group = {'match': 0, 'group': ''}
         for group in groups:
             match = fuzz.ratio(ri.group.name, groups[group])
             # Add match trumping
-            if match == 100:
-                log.info('Exact match found for "{0}": {1}{2}'.format(ri.group.name, groupUrl, group))
-                found = True
-                break
-            elif match > args.fuzzratio:
-                log.info('Possible ({0}%) match found for "{1}": {2}{3}'.format(match, ri.group.name, groupUrl, group))
-                found = True
-                break
-        if not found:
-            print 'POTENTIAL UPLOAD: No match found for "{0}".'.format(ri.group.name)
+            # Add match intelligence
+            if match > best_group['match']:
+                best_group['group'] = group
+                best_group['match'] = match
+                if match == 100:
+                    break
+        if best_group['match'] == 100:
+            log.info('Exact match found for "{0}": {1}{2}'.format(ri.group.name, groupUrl, group))
+        elif best_group['match'] > args.fuzzratio:
+            log.info('Possible ({0}%) match found for "{1}": {2}{3}'.format(match, ri.group.name, groupUrl, group))
+        else:
+            print 'POTENTIAL UPLOAD: Closest match for "{0}" scored {1}.'.format(ri.group.name, best_group['match'])
             print 'Artist page for "{0}": {1}{2}'.format(artist['name'], artistUrl, artist['id'])
-
+            
 
 
 
