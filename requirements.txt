@@ -3,3 +3,4 @@ discogs-client==2.2.1
 mechanize==0.2.5
 pylast==1.6.0
 git+ssh://git@github.com/seatgeek/fuzzywuzzy.git@0.14.0#egg=fuzzywuzzy
+python-Levenshtein==0.12.0
