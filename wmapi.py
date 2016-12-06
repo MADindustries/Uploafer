@@ -56,14 +56,27 @@ class torrentInfo(object):
 
 class musicInfo(object):
     def __init__(self, mi):
-        # TODO: These need to support multiple entries at some point
-        self.composers = miComposer(mi['composers'])
-        self.dj = miDJ(mi['dj'])
-        self.producer = miProducer(mi['producer'])
-        self.conductor = miConductor(mi['conductor'])
-        self.remixedBy = miRemixedBy(mi['remixedBy'])
-        self.artists = miArtists(mi['artists'])
-        self.miWith = miWith(mi['with'])
+        self.composers = []
+        self.dj = []
+        self.producer = []
+        self.conductor = []
+        self.remixedBy = []
+        self.artists = []
+        self.miWith = []
+        for i in range(0,len(mi['composers'])):
+            self.composers.append(miComposer(mi['composers'][i]))
+        for i in range(0,len(mi['dj'])):
+            self.dj.append(miDJ(mi['dj'][i]))
+        for i in range(0,len(mi['producer'])):
+            self.producer.append(miProducer(mi['producer'][i]))
+        for i in range(0,len(mi['conductor'])):
+            self.conductor.append(miConductor(mi['conductor'][i]))
+        for i in range(0,len(mi['remixedBy'])):
+            self.remixedBy.append(miRemixedBy(mi['remixedBy'][i]))
+        for i in range(0,len(mi['artists'])):
+            self.artists.append(miArtists(mi['artists'][i]))
+        for i in range(0,len(mi['with'])):
+            self.miWith.append(miWith(mi['with']))
 
 class collaborator(object):
     """
@@ -75,8 +88,8 @@ class collaborator(object):
 
     def __init__(self, collab):
         if collab:
-            self.id = collab[0]['id']
-            self.name = collab[0]['name']
+            self.id = collab['id']
+            self.name = collab['name']
 
     @abstractmethod
     def collab_type(self):
