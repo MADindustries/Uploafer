@@ -7,26 +7,31 @@ import pickle
 import logging as log
 from fuzzywuzzy import fuzz
 from wmapi import ReleaseInfo
+from settings import USERNAME, PASSWORD, ANNOUNCE, WM2_ROOT, WM2_MEDIA, WORKING_ROOT, FUZZ_RATIO
 
 pthurl = 'https://passtheheadphones.me/'
 
 # TODO: Proper error handling
 
 class group(object):
-    def __init__(self, id, name, match = 000):
+    def __init__(self, id=None, name=None, path=None):
         self.id = id
         self.name = name
-        self.match = match
-        self.url = ''
+        self.path = path
+        self.match = 00
+        self.groupUrl = ''
+        self.artistUrl = ''
+        self.artistName = ''
+        self.mediaPath = ''
 
 def parseArgs():
     argparser = argparse.ArgumentParser(description='This is uploafer. Obviously. If you don\'t know what WM2 is, better not to know what uploafer is.')
-    argparser.add_argument('-u', '--username', help='Your PTH username', required=True)
-    argparser.add_argument('-p', '--password', help='Your PTH password', required=True)
-    argparser.add_argument('-i', '--wm2media', help='The directory containing your WM2 downloads. Each subdirectory should contain a "ReleaseInfo2.txt" file.', default='.', required=True)
-    argparser.add_argument('-w', '--wm2root', help='This directory should contain "manage.py". Leave this blank to disable auto-import. Warning: auto-import will MOVE your torrent data!')
-    argparser.add_argument('-o', '--output', help='This is the output directory for torrents and media you wish to upload. This option is overridden if wm2root is specified.')
-    argparser.add_argument('-z', '--fuzzratio', help='Minimum likeness ratio required to consider a match. Lower this to increase matching paranoia. Default is 90', type=int, default=90)
+    #argparser.add_argument('-u', '--username', help='Your PTH username', required=True)
+    #argparser.add_argument('-p', '--password', help='Your PTH password', required=True)
+    #argparser.add_argument('-i', '--wm2media', help='The directory containing your WM2 downloads. Each subdirectory should contain a "ReleaseInfo2.txt" file.', default='.', required=True)
+    #argparser.add_argument('-w', '--wm2root', help='This directory should contain "manage.py". Leave this blank to disable auto-import. Warning: auto-import will MOVE your torrent data!')
+    #argparser.add_argument('-o', '--output', help='This is the output directory for torrents and media you wish to upload. This option is overridden if wm2root is specified.')
+    #argparser.add_argument('-z', '--fuzzratio', help='Minimum likeness ratio required to consider a match. Anything which scores higher than this will not be eligible for uploading. Default is 90', type=int, default=90)
     argparser.add_argument('-vv', '--debug', help='Highest level of verbosity for debugging', action="store_true")
     argparser.add_argument('-v', '--verbose', help='High level of verbosity for detailed info', action="store_true")
     argparser.add_argument('-r', '--resume', help="Resume where uploafer left off within the WM2 media directory.", action="store_true")
@@ -105,7 +110,8 @@ def retrieveArtistId(pth, artist):
     return artistId['id']
 
 def findBestGroup(localGrp, artistGroups):
-    bestGrp = localGrp #placeholder
+    #TODO: Check catalogue numbers!
+    bestGrp = group() #placeholder
     for grp in artistGroups:
         remoteGrp = group(grp, artistGroups[grp])
         remoteGrp.match = fuzz.ratio(localGrp.name, remoteGrp.name)
@@ -113,26 +119,45 @@ def findBestGroup(localGrp, artistGroups):
             bestGrp = remoteGrp
             if bestGrp.match == 100:
                 break
-    bestGrp.url = pthurl + 'torrents.php?id=' + str(bestGrp.id)
+    bestGrp.groupUrl = pthurl + 'torrents.php?id=' + str(bestGrp.id)
     return bestGrp
 
-def requestUpload(dataPath, outputPath, localGroup, bestGroup, artistUrl):
+def requestUpload(localGroup, remoteGroup):
     print('')
-    print('No match found!')
-    print('Closest match ({0}): {1}'.format(bestGroup['match'], bestGroup['name']))
-    if query_yes_no('Do you want to upload "{0}" to artist page "{1}"?'.format(localGroup, artistUrl)):
+    print('No match found for "{0}"!'.format(localGroup.name))
+    print('Closest match ({0}% likeness): {1}'.format(remoteGroup.match, remoteGroup.name))
+    #Next line, what if more than one artist or secondary artist identifier?
+    if query_yes_no('Do you want to upload to artist "{0}" "{1}"?'.format(localGroup.musicInfo.artists[0].name, remoteGroup.artistUrl)):
+        make_torrent(localGroup, remoteGroup)
         print('Uploading..')
     else:
         print('Moving on..')
+
+def make_torrent(localGroup, remoteGroup):
+    #TODO: This is mess. Make it not mess
+    m_root = os.path.join(WORKING_ROOT, str(remoteGroup.id))
+    m_root = os.path.join(m_root, localGroup.mediaPath)
+    torrent = os.path.join(WORKING_ROOT, str(remoteGroup.id)) + ".torrent"
+    if os.path.exists(torrent):
+        os.remove(torrent)
+    if not os.path.exists(os.path.dirname(torrent)):
+        os.path.makedirs(os.path.dirname(torrent))
+    command = ["mktorrent", "-p", "-s", "PTH", "-a", ANNOUNCE, "-o", torrent, m_root]
+    quit()
+    return torrent
+
+def uploadTorrent(localGroup, remoteGroup):
+    pass
+
 
 def main():
     #Get args
     args = parseArgs()
     #Open PTH session
-    pth = whatapi.WhatAPI(args.username, args.password)
+    pth = whatapi.WhatAPI(USERNAME, PASSWORD)
     groupUrl = pthurl + 'torrents.php?id='
     #Load file list and skip completed if required
-    riList = findRiFiles(args.wm2media)
+    riList = findRiFiles(WM2_MEDIA)
     if args.resume:
         riList = resumeRiFiles(riList)
     #Check for existing torrents
@@ -141,22 +166,25 @@ def main():
         ri = loadReleaseInfo(file)
         artistId = retrieveArtistId(pth, ri.group.musicInfo.artists[0].name) #What if more than one?
         artistGroups = pth.get_groups(artistId)
-        localGrp = group(ri.group.id, ri.group.name) #Group stored on disk
-        remoteGrp = findBestGroup(localGrp, artistGroups) #Closest matching group by artist
-        if remoteGrp.match == 100:
-            log.info('Exact match found for "{0}": {1}'.format(localGrp.name, remoteGrp.url))
-        elif remoteGrp.match > args.fuzzratio:
-            log.info('Possible ({0}%) match found for "{1}": {2}'.format(remoteGrp.match, localGrp.name, remoteGrp.url))
+        localGrp = ri.group #Group stored on disk
+        localGrp.path = os.path.join(WM2_MEDIA,str(ri.torrent.id))
+        #Get media directory
+        media = next(os.walk(localGrp.path))[1]
+        if len(media) == 1:
+            localGrp.mediaPath = media[0]
         else:
-            mediaPath = args.wm2media + str(ri.torrent.id)
-            #requestUpload(mediaPath, args.output, localGrp, remoteGrp, artistUrl + str(artist['id']))
-
-            #print('POTENTIAL UPLOAD: Closest match for "{0}" ({1}) scored {2}.'.format(ri.group.name, ri.group.id, best_group['match']))
-            #print('   Closest match: "{0}"'.format(best_group['name']))
-            #print('   Artist page for "{0}": {1}{2}'.format(artist['name'], artistUrl, artist['id']))
-            
-
-
+            log.error('Multiple directories in "{0}". Halting..'.format(localGrp.path)) #FIX THIS SHIT, ITS DUMB
+        #TODO: Make proper class for PTH group info
+        remoteGrp = findBestGroup(localGrp, artistGroups) #Closest matching group by artist
+        remoteGrp.artistUrl = pthurl + 'artist.php?id=' + str(artistId)
+        if remoteGrp.match == 100:
+            log.info('Exact match found for "{0}": {1}'.format(localGrp.name, remoteGrp.groupUrl))
+            #TODO: Check for possible seeding/trumping opportunity
+        elif remoteGrp.match > FUZZ_RATIO:
+            log.info('Probable ({0}%) match found for "{1}": {2}'.format(remoteGrp.match, localGrp.name, remoteGrp.groupUrl))
+            #TODO: Add to list of potential trumping opportunities
+        else:
+            requestUpload(localGrp, remoteGrp)
 
 
 if __name__ == "__main__":
