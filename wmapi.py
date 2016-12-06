@@ -76,7 +76,7 @@ class musicInfo(object):
         for i in range(0,len(mi['artists'])):
             self.artists.append(miArtists(mi['artists'][i]))
         for i in range(0,len(mi['with'])):
-            self.miWith.append(miWith(mi['with']))
+            self.miWith.append(miWith(mi['with'][i]))
 
 class collaborator(object):
     """
