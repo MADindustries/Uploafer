@@ -124,10 +124,12 @@ def findBestGroup(localGrp, artist):
 
 def requestUpload(localGrp, remoteGrp, artist):
     print('')
-    print('No match found for "{0}"!'.format(localGrp.name))
+    print('No match found for "{0}"!  [{1}]'.format(localGrp.name, localGrp.path))
     print('Closest match ({0}% likeness): {1}'.format(remoteGrp.match, remoteGrp.groupName))
     #Next line, what if more than one artist or secondary artist identifier?
-    if query_yes_no('Do you want to upload to artist "{0}" "{1}"?'.format(localGrp.musicInfo.artists[0].name, artist.url)):
+    log.info("Upload not yet implemented. Skipping..")
+    return False
+    if query_yes_no('Do you want to upload to artist "{0}" [{1}]?'.format(localGrp.musicInfo.artists[0].name, artist.url)):
         return True
     else:
         return False
@@ -172,7 +174,12 @@ def main():
             #TODO: Store/retrieve cookie
 
         #Load the best remote group to compare with
-        artist = retrieveArtist(session, localGrp.musicInfo.artists[0].name) #What if more than one?
+        try:
+            artist = retrieveArtist(session, localGrp.musicInfo.artists[0].name) #What if more than one?
+        except:
+            log.error('Error retrieving artist: "{0}"'.format(localGrp.musicInfo.artists[0].name))
+            continue
+            #TODO: Put better reporting / handling here (It's an UPLOAD!')
         remoteGrp = findBestGroup(localGrp, artist) #Closest matching group by artist
 
         #Update user
