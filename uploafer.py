@@ -11,6 +11,7 @@ from settings import USERNAME, PASSWORD, ANNOUNCE, WM2_ROOT, WM2_MEDIA, WORKING_
 
 gazelle_url = 'https://passtheheadphones.me/'
 resumeList =[]
+potential_uploads = 0
 
 # TODO: Proper error handling
 
@@ -132,9 +133,9 @@ def findBestGroup(localGrp, artist):
                     break
     return bestGrp
 
-def requestUpload(localGrp, remoteGrp, artist, auto=False):
+def requestUpload(ri, remoteGrp, artist, auto=False):
     print('')
-    print('No match found for "{0}"!  [{1}]'.format(localGrp.name, localGrp.path))
+    print('No match found for "{0}" [{1}/{2}]:  {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, ri.group.path))
     print('Closest match ({0}% likeness): {1}'.format(remoteGrp.match, remoteGrp.groupName))
     #Next line, what if more than one artist or secondary artist identifier?
     if auto:
@@ -146,6 +147,7 @@ def requestUpload(localGrp, remoteGrp, artist, auto=False):
         return False
 
 def buildUpload(ri, artist, remoteGrp):
+    potential_uploads += 1
     artists = album_artists(album)
     remaster = remaster_status(album)
     data = [
@@ -250,14 +252,16 @@ def main():
         elif remoteGrp.match >= FUZZ_RATIO:
             log.info('Probable ({0}%) match found for "{1}" [{2}/{3}]: {4}'.format(remoteGrp.match, localGrp.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
             #TODO: Add to list of potential trumping opportunities
-        elif requestUpload(localGrp, remoteGrp, artist, args.auto):
+        elif requestUpload(ri, remoteGrp, artist, args.auto):
             buildUpload(ri, artist, remoteGrp)
         else:
             print('Moving on..')
-
-        resumeList.append(file)
-        saveResume()
+        
+        if args.resume:
+            resumeList.append(file)
+            saveResume()
             
+    print('Potential Uploads: {0}'.format(str(potential_uploads)))
 
 
 if __name__ == "__main__":
