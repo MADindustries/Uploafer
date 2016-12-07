@@ -6,23 +6,13 @@ import sys
 import pickle
 import logging as log
 from fuzzywuzzy import fuzz
-from wmapi import ReleaseInfo
+from wmapi import releaseInfo, torrentGroup, artistInfo
 from settings import USERNAME, PASSWORD, ANNOUNCE, WM2_ROOT, WM2_MEDIA, WORKING_ROOT, FUZZ_RATIO
 
-pthurl = 'https://passtheheadphones.me/'
+gazelle_url = 'https://passtheheadphones.me/'
+resumeList =[]
 
 # TODO: Proper error handling
-
-class group(object):
-    def __init__(self, id=None, name=None, path=None):
-        self.id = id
-        self.name = name
-        self.path = path
-        self.match = 00
-        self.groupUrl = ''
-        self.artistUrl = ''
-        self.artistName = ''
-        self.mediaPath = ''
 
 def parseArgs():
     argparser = argparse.ArgumentParser(description='This is uploafer. Obviously. If you don\'t know what WM2 is, better not to know what uploafer is.')
@@ -69,122 +59,139 @@ def query_yes_no(question, default="no"):
             sys.stdout.write("Please respond with 'yes' or 'no' "
                              "(or 'y' or 'n').\n")
 
-def findRiFiles(wm2media):
+def findRiFiles(wm2media, resume):
+    global resumeList
     try:
         riList = []
         for dir in os.listdir(wm2media):
-            path = os.path.join(wm2media, dir) + '/ReleaseInfo2.txt'
-            if os.path.isfile(path):
+            path = os.path.join(wm2media, dir)
+            if os.path.isfile(os.path.join(path, 'ReleaseInfo2.txt')):
                 riList.append(path)
             else:
                 log.warning('No ReleaseInfo file found for path "{0}"'.format(path))
+        if resume:
+            path = os.path.join(WORKING_ROOT, 'resume.wm2')
+            with open(path, 'rb') as resFile:
+                resumeList = pickle.load(resFile)
+            riList = list(set(riList) - set(resumeList))
         return sorted(riList)
-    except:
-        raise
-
-def resumeRiFiles(riList):
-    path = './resume.wm2'
-    try:
-        with open(path, 'wb') as resFile:
-            pickle.dump(resumeList, resFile)
-        riList = set(riList) - set(resumeList)
-        return sorted(list(riList))
     except:
         raise
 
 def loadReleaseInfo(path):
     try:
-        riFile = open(path, 'r')
+        riFile = open(os.path.join(path, 'ReleaseInfo2.txt'), 'r')
         riJson = json.loads(riFile.read())
-        ri = ReleaseInfo(riJson)
+        ri = releaseInfo(riJson)
+        ri.group.path = path
+        contents = next(os.walk(path))[1]
+        if len(contents) == 1:
+            ri.group.mediaDir = contents[0] #contains only the folder name. no path
+        elif len(contents) < 1:
+            log.error('Missing or malformed media in "{0}". Skipping..'.format(path))
+            #TODO: Raise custom error here
+        else:
+            log.error('Multiple directories in "{0}". Skipping..'.format(path))
+            #TODO: Raise custom error here
     except:
         raise
     return ri
 
-def retrieveArtistId(pth, artist):
+def retrieveArtist(session, artist):
     log.debug("Artist search: {0}".format(artist))
     try:
-        artistId = pth.request('artist', artistname=artist) #What if more than one?
+        artist = artistInfo(session.request('artist', artistname=artist)) #What if more than one?
     except Exception:
         raise
-    return artistId['id']
+    return artist
 
-def findBestGroup(localGrp, artistGroups):
+def findBestGroup(localGrp, artist):
     #TODO: Check catalogue numbers!
-    bestGrp = group() #placeholder
-    for grp in artistGroups:
-        remoteGrp = group(grp, artistGroups[grp])
-        remoteGrp.match = fuzz.ratio(localGrp.name, remoteGrp.name)
-        if remoteGrp.match > bestGrp.match:
-            bestGrp = remoteGrp
-            if bestGrp.match == 100:
-                break
-    bestGrp.groupUrl = pthurl + 'torrents.php?id=' + str(bestGrp.id)
+    bestGrp = localGrp #placeholder
+    bestGrp.match = 0
+    for group in artist.torrentgroup:
+        if localGrp.catalogueNumber == group.groupCatalogueNumber:
+            bestGrp = group
+            bestGrp.match = 101
+            break
+        else:
+            group.match = fuzz.ratio(localGrp.name, group.groupName)
+            if group.match > bestGrp.match:
+                bestGrp = group
+                if bestGrp.match == 100:
+                    break
     return bestGrp
 
-def requestUpload(localGroup, remoteGroup):
+def requestUpload(localGrp, remoteGrp, artist):
     print('')
-    print('No match found for "{0}"!'.format(localGroup.name))
-    print('Closest match ({0}% likeness): {1}'.format(remoteGroup.match, remoteGroup.name))
+    print('No match found for "{0}"!'.format(localGrp.name))
+    print('Closest match ({0}% likeness): {1}'.format(remoteGrp.match, remoteGrp.groupName))
     #Next line, what if more than one artist or secondary artist identifier?
-    if query_yes_no('Do you want to upload to artist "{0}" "{1}"?'.format(localGroup.musicInfo.artists[0].name, remoteGroup.artistUrl)):
-        make_torrent(localGroup, remoteGroup)
-        print('Uploading..')
+    if query_yes_no('Do you want to upload to artist "{0}" "{1}"?'.format(localGrp.musicInfo.artists[0].name, artist.url)):
+        return True
     else:
-        print('Moving on..')
+        return False
 
 def make_torrent(localGroup, remoteGroup):
     #TODO: This is mess. Make it not mess
     m_root = os.path.join(WORKING_ROOT, str(remoteGroup.id))
-    m_root = os.path.join(m_root, localGroup.mediaPath)
-    torrent = os.path.join(WORKING_ROOT, str(remoteGroup.id)) + ".torrent"
+    m_root = os.path.join(m_root, localGroup.mediaDir)
+    torrent = os.path.join(WORKING_ROOT, localGroup.mediaDir) + ".torrent"
     if os.path.exists(torrent):
         os.remove(torrent)
     if not os.path.exists(os.path.dirname(torrent)):
         os.path.makedirs(os.path.dirname(torrent))
     command = ["mktorrent", "-p", "-s", "PTH", "-a", ANNOUNCE, "-o", torrent, m_root]
-    quit()
+    subprocess.check_output(command, stderr=subprocess.STDOUT)
     return torrent
 
 def uploadTorrent(localGroup, remoteGroup):
     pass
 
+def saveResume():
+    path = os.path.join(WORKING_ROOT, 'resume.wm2')
+    with open(path, 'wb') as resFile:
+        pickle.dump(resumeList, resFile)
 
 def main():
     #Get args
     args = parseArgs()
-    #Open PTH session
-    pth = whatapi.WhatAPI(USERNAME, PASSWORD)
-    groupUrl = pthurl + 'torrents.php?id='
+
     #Load file list and skip completed if required
-    riList = findRiFiles(WM2_MEDIA)
-    if args.resume:
-        riList = resumeRiFiles(riList)
+    riList = findRiFiles(WM2_MEDIA, args.resume)
     #Check for existing torrents
     for file in riList:
         log.debug('Currently processing: ' + file)
+
+        #Load the local torrent group we are working with
         ri = loadReleaseInfo(file)
-        artistId = retrieveArtistId(pth, ri.group.musicInfo.artists[0].name) #What if more than one?
-        artistGroups = pth.get_groups(artistId)
-        localGrp = ri.group #Group stored on disk
-        localGrp.path = os.path.join(WM2_MEDIA,str(ri.torrent.id))
-        #Get media directory
-        media = next(os.walk(localGrp.path))[1]
-        if len(media) == 1:
-            localGrp.mediaPath = media[0]
-        else:
-            log.error('Multiple directories in "{0}". Halting..'.format(localGrp.path)) #FIX THIS SHIT, ITS DUMB
-        #TODO: Make proper class for PTH group info
-        remoteGrp = findBestGroup(localGrp, artistGroups) #Closest matching group by artist
-        remoteGrp.artistUrl = pthurl + 'artist.php?id=' + str(artistId)
-        if remoteGrp.match == 100:
-            log.info('Exact match found for "{0}": {1}'.format(localGrp.name, remoteGrp.groupUrl))
+        localGrp = ri.group
+        
+        #Open session
+        session = whatapi.WhatAPI(USERNAME, PASSWORD)
+            #TODO: Store/retrieve cookie
+
+        #Load the best remote group to compare with
+        artist = retrieveArtist(session, localGrp.musicInfo.artists[0].name) #What if more than one?
+        remoteGrp = findBestGroup(localGrp, artist) #Closest matching group by artist
+
+        #Update user
+        if remoteGrp.match == 101:
+            log.info('Exact catalogue match found for "{0}": {1}'.format(localGrp.name, remoteGrp.url))
+        elif remoteGrp.match == 100:
+            log.info('Exact match found for "{0}": {1}'.format(localGrp.name, remoteGrp.url))
             #TODO: Check for possible seeding/trumping opportunity
         elif remoteGrp.match > FUZZ_RATIO:
-            log.info('Probable ({0}%) match found for "{1}": {2}'.format(remoteGrp.match, localGrp.name, remoteGrp.groupUrl))
+            log.info('Probable ({0}%) match found for "{1}": {2}'.format(remoteGrp.match, localGrp.name, remoteGrp.url))
             #TODO: Add to list of potential trumping opportunities
+        elif requestUpload(localGrp, remoteGrp, artist):
+            pth.upload(os.path.join(localGrp.path, localGrp.mediaDir), WORKING_ROOT, )
         else:
-            requestUpload(localGrp, remoteGrp)
+            print('Moving on..')
+
+        resumeList.append(file)
+        saveResume()
+            
 
 
 if __name__ == "__main__":
