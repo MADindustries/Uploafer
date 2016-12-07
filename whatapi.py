@@ -245,15 +245,6 @@ class WhatAPI:
         res['torrentgroup'] = keep_releases
         return res
 
-    def get_groups(self, id=None):
-        res = self.request('artist', id=id)
-        torrentgroups = res['torrentgroup']
-        groups = {}
-        for release in torrentgroups:
-            groups[release['groupId']] = release['groupName']
-        return groups
-
-
     def snatched(self, skip=None, media=lossless_media):
         if not media.issubset(lossless_media):
             raise ValueError('Unsupported media type %s' % (media - lossless_media).pop())
