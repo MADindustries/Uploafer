@@ -219,6 +219,7 @@ def main():
         ri = loadReleaseInfo(file)
         if ri.group.categoryId != 1:
             log.info('Group "{0}" is not a music group. Skipping..'.format(ri.group.name))
+            continue
         localGrp = ri.group
         
         #Open session
@@ -240,7 +241,7 @@ def main():
         elif remoteGrp.match == 100:
             log.info('Exact match found for "{0}": {1}'.format(localGrp.name, remoteGrp.url))
             #TODO: Check for possible seeding/trumping opportunity
-        elif remoteGrp.match > FUZZ_RATIO:
+        elif remoteGrp.match >= FUZZ_RATIO:
             log.info('Probable ({0}%) match found for "{1}": {2}'.format(remoteGrp.match, localGrp.name, remoteGrp.url))
             #TODO: Add to list of potential trumping opportunities
         elif requestUpload(localGrp, remoteGrp, artist, args.auto):
