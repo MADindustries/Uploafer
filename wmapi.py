@@ -3,6 +3,7 @@ from abc import ABCMeta, abstractmethod
 
 gazelle_url = 'https://passtheheadphones.me/'
 
+#Gazelle Format ArtistInfo
 class artistInfo(object):
     def __init__(self, artist):
         self.id = artist['id']
@@ -106,6 +107,8 @@ class torrentGroup(object):
         for i in range(0,len(tg['torrents'])):
             self.torrents.append(torrentInfo(tg['torrents'][i]))
 
+
+#WM2 Format ReleaseInfo
 class releaseInfo(object):
     def __init__(self, ri):
         self.group = releaseGroup(ri['group'])
@@ -121,7 +124,10 @@ class releaseGroup(object):
         self.releaseType = rg['releaseType']
         self.categoryId = rg['categoryId']
         self.wikiBody = rg['wikiBody']
-        self.musicInfo = musicInfo(rg['musicInfo'])
+        if rg['categoryId'] == 1:
+            self.musicInfo = musicInfo(rg['musicInfo'])
+        else:
+            self.musicInfo = None
         self.time = rg['time']
         self.year = rg['year']
         self.wikiImage = rg['wikiImage']
@@ -142,6 +148,7 @@ class torrentInfo(object):
         self.leechers = ti['leechers']
         self.remasterYear = ti['remasterYear']
         self.snatched = ti['snatched']
+        #infoHash goes here
         self.id = ti['id']
         self.size = ti['size']
         self.media = ti['media']
@@ -160,7 +167,7 @@ class torrentInfo(object):
         self.freetorrent = ti['freeTorrent']
         self.fileCount = ti['fileCount']
         if wm2:
-            self.infoHash = ti['infoHash']
+            self.infoHash = ti['infoHash'] #Do I still need this? Better check...
 
 class musicInfo(object):
     def __init__(self, mi):

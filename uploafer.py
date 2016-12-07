@@ -25,6 +25,7 @@ def parseArgs():
     argparser.add_argument('-vv', '--debug', help='Highest level of verbosity for debugging', action="store_true")
     argparser.add_argument('-v', '--verbose', help='High level of verbosity for detailed info', action="store_true")
     argparser.add_argument('-r', '--resume', help="Resume where uploafer left off within the WM2 media directory.", action="store_true")
+    argparser.add_argument('-a', '--auto', help='Don\'t use this.', action="store_true")
     args = argparser.parse_args()
     if args.debug:
         log.basicConfig(format="%(levelname)s: %(message)s", level=log.DEBUG)
@@ -65,15 +66,21 @@ def findRiFiles(wm2media, resume):
         riList = []
         for dir in os.listdir(wm2media):
             path = os.path.join(wm2media, dir)
-            if os.path.isfile(os.path.join(path, 'ReleaseInfo2.txt')):
-                riList.append(path)
+            if os.path.isdir(path):
+                if os.path.isfile(os.path.join(path, 'ReleaseInfo2.txt')):
+                    riList.append(path)
+                else:
+                    log.warning('No ReleaseInfo file found for path "{0}"'.format(path))
             else:
-                log.warning('No ReleaseInfo file found for path "{0}"'.format(path))
+                log.warning('"{0}" is not a directory.'.format(path))
         if resume:
             path = os.path.join(WORKING_ROOT, 'resume.wm2')
-            with open(path, 'rb') as resFile:
-                resumeList = pickle.load(resFile)
-            riList = list(set(riList) - set(resumeList))
+            if os.path.isfile(path):
+                with open(path, 'rb') as resFile:
+                    resumeList = pickle.load(resFile)
+                riList = list(set(riList) - set(resumeList))
+            else:
+                log.warning('Cannot access "{0}"'.format(path))
         return sorted(riList)
     except:
         raise
@@ -84,6 +91,8 @@ def loadReleaseInfo(path):
         riJson = json.loads(riFile.read())
         ri = releaseInfo(riJson)
         ri.group.path = path
+
+        #TODO: Below may not be necessary. See ri.torrent.filePath for a possible replacement
         contents = next(os.walk(path))[1]
         if len(contents) == 1:
             ri.group.mediaDir = contents[0] #contains only the folder name. no path
@@ -93,6 +102,7 @@ def loadReleaseInfo(path):
         else:
             log.error('Multiple directories in "{0}". Skipping..'.format(path))
             #TODO: Raise custom error here
+
     except:
         raise
     return ri
@@ -122,17 +132,57 @@ def findBestGroup(localGrp, artist):
                     break
     return bestGrp
 
-def requestUpload(localGrp, remoteGrp, artist):
+def requestUpload(localGrp, remoteGrp, artist, auto=False):
     print('')
     print('No match found for "{0}"!  [{1}]'.format(localGrp.name, localGrp.path))
     print('Closest match ({0}% likeness): {1}'.format(remoteGrp.match, remoteGrp.groupName))
     #Next line, what if more than one artist or secondary artist identifier?
-    log.info("Upload not yet implemented. Skipping..")
-    return False
+    if auto:
+        log.info("Upload not yet implemented. Skipping..")
+        return False
     if query_yes_no('Do you want to upload to artist "{0}" [{1}]?'.format(localGrp.musicInfo.artists[0].name, artist.url)):
         return True
     else:
         return False
+
+def buildUpload(ri, artist, remoteGrp):
+    artists = album_artists(album)
+    remaster = remaster_status(album)
+    data = [
+        ("submit", "true"),  # the submit button
+        ("type", "0"),  # music
+        ("title", ri.group.name), # album name
+        ("year", ri.group.year), # album year
+        ("record_label", ri.group.recordLabel),
+        ("catalogue_number", ri.group.catalogueNumber),
+        ("releasetype", ri.group.releaseType), #this may need to be shifted for zero based index
+        ("remaster", ri.torrent.remastered),
+        ("remaster_year", ri.torrent.remasterYear),
+        ("remaster_title", ri.torrent.remasterTitle),
+        ("remaster_record_label", ri.torrent.remasterRecordLabel),
+        ("remaster_catalogue_number", ri.torrent.remasterCatalogueNumber),
+        ("format", ri.torrent.format),
+        ("bitrate", ri.torrent.encoding),
+        ("other_bitrate", ""),  # n/a
+        ("media", ri.torrent.media),  # Media source
+        ("genre_tags", tags[0]),  # blank - this is the dropdown of official tags
+        ("tags", ", ".join(ri.group.tags)),  # classical, hip.hop, etc. (comma separated)
+        ("image", ri.group.wikiImage),  #TODO: What if this is a whatimg link??
+        ("album_desc", ri.torrent.description),
+        ("release_desc", "UPLOAFED")
+    ]
+    for artist in artists:
+        importance = 1
+        if " feat. " in artist:
+            artist = artist.split(" feat. ")[1]
+            importance = 2
+        data.append(("artists[]", artist))
+        data.append(("importance[]", importance))
+    files = []
+    for logfile in logfiles:
+        files.append(("logfiles[]", logfile))
+    files.append(("file_input", torrent))
+    return data, files
 
 def make_torrent(localGroup, remoteGroup):
     #TODO: This is mess. Make it not mess
@@ -167,6 +217,8 @@ def main():
 
         #Load the local torrent group we are working with
         ri = loadReleaseInfo(file)
+        if ri.group.categoryId != 1:
+            log.info('Group "{0}" is not a music group. Skipping..'.format(ri.group.name))
         localGrp = ri.group
         
         #Open session
@@ -178,8 +230,8 @@ def main():
             artist = retrieveArtist(session, localGrp.musicInfo.artists[0].name) #What if more than one?
         except:
             log.error('Error retrieving artist: "{0}"'.format(localGrp.musicInfo.artists[0].name))
-            continue
             #TODO: Put better reporting / handling here (It's an UPLOAD!')
+            continue
         remoteGrp = findBestGroup(localGrp, artist) #Closest matching group by artist
 
         #Update user
@@ -191,8 +243,8 @@ def main():
         elif remoteGrp.match > FUZZ_RATIO:
             log.info('Probable ({0}%) match found for "{1}": {2}'.format(remoteGrp.match, localGrp.name, remoteGrp.url))
             #TODO: Add to list of potential trumping opportunities
-        elif requestUpload(localGrp, remoteGrp, artist):
-            pth.upload(os.path.join(localGrp.path, localGrp.mediaDir), WORKING_ROOT, )
+        elif requestUpload(localGrp, remoteGrp, artist, args.auto):
+            buildUpload(ri, artist, remoteGrp)
         else:
             print('Moving on..')
 
