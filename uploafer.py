@@ -120,7 +120,7 @@ def findBestGroup(localGrp, artist):
     bestGrp = localGrp #placeholder
     bestGrp.match = 0
     for group in artist.torrentgroup:
-        if localGrp.catalogueNumber == group.groupCatalogueNumber:
+        if (localGrp.catalogueNumber != '') and (localGrp.catalogueNumber == group.groupCatalogueNumber):
             bestGrp = group
             bestGrp.match = 101
             break
@@ -138,7 +138,7 @@ def requestUpload(localGrp, remoteGrp, artist, auto=False):
     print('Closest match ({0}% likeness): {1}'.format(remoteGrp.match, remoteGrp.groupName))
     #Next line, what if more than one artist or secondary artist identifier?
     if auto:
-        log.info("Upload not yet implemented. Skipping..")
+        log.info("Upload not yet implemented.")
         return False
     if query_yes_no('Do you want to upload to artist "{0}" [{1}]?'.format(localGrp.musicInfo.artists[0].name, artist.url)):
         return True
@@ -169,7 +169,7 @@ def buildUpload(ri, artist, remoteGrp):
         ("tags", ", ".join(ri.group.tags)),  # classical, hip.hop, etc. (comma separated)
         ("image", ri.group.wikiImage),  #TODO: What if this is a whatimg link??
         ("album_desc", ri.torrent.description),
-        ("release_desc", "UPLOAFED")
+        ("release_desc", "UPLOAFED!") #TODO: You are better than this
     ]
     for artist in artists:
         importance = 1
@@ -228,21 +228,27 @@ def main():
 
         #Load the best remote group to compare with
         try:
-            artist = retrieveArtist(session, localGrp.musicInfo.artists[0].name) #What if more than one?
+            if len(localGrp.musicInfo.artists) > 0:
+                artist = retrieveArtist(session, localGrp.musicInfo.artists[0].name) #What if more than one?
+            elif len(localGrp.musicInfo.composers) > 0:
+                artist = retrieveArtist(session, localGrp.musicInfo.composers[0].name)
+            else:
+                log.error('Neither Artist nor Composer provided for ID "{0}". Skipping..'.format(localGrp.categoryId))
+                continue
         except:
-            log.error('Error retrieving artist: "{0}"'.format(localGrp.musicInfo.artists[0].name))
+            log.error('Artist not found: {0}'.format(localGrp.musicInfo.artists[0].name))
             #TODO: Put better reporting / handling here (It's an UPLOAD!')
             continue
         remoteGrp = findBestGroup(localGrp, artist) #Closest matching group by artist
 
         #Update user
         if remoteGrp.match == 101:
-            log.info('Exact catalogue match found for "{0}": {1}'.format(localGrp.name, remoteGrp.url))
+            log.info('Exact catalogue match found for "{0}" [{1}/{2}]: {3}'.format(localGrp.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
         elif remoteGrp.match == 100:
-            log.info('Exact match found for "{0}": {1}'.format(localGrp.name, remoteGrp.url))
+            log.info('Exact title match found for "{0}" [{1}/{2}]: {3}'.format(localGrp.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
             #TODO: Check for possible seeding/trumping opportunity
         elif remoteGrp.match >= FUZZ_RATIO:
-            log.info('Probable ({0}%) match found for "{1}": {2}'.format(remoteGrp.match, localGrp.name, remoteGrp.url))
+            log.info('Probable ({0}%) match found for "{1}" [{2}/{3}]: {4}'.format(remoteGrp.match, localGrp.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
             #TODO: Add to list of potential trumping opportunities
         elif requestUpload(localGrp, remoteGrp, artist, args.auto):
             buildUpload(ri, artist, remoteGrp)
