@@ -25,6 +25,7 @@ class artistInfo(object):
         self.requests = []
         for request in artist['requests']:
             self.requests.append(artistRequest(request))
+        self.url = '{0}artist.php?id={1}'.format(gazelle_url, artist['id'])
 
 class artistTag(object):
     def __init__(self, tag):
@@ -62,6 +63,7 @@ class artistTG(object):
         self.torrent = []
         for torrent in tg['torrent']:
             self.torrent.append(artistTorrent(torrent))
+        self.url = '{0}torrents.php?id={1}'.format(gazelle_url, tg['groupId'])
 
 class artistTorrent(object):
     def __init__(self, ti):
@@ -88,7 +90,7 @@ class artistTorrent(object):
         self.hasFile = ti['hasFile']
 
 class artistRequest(object):
-    def __init(self, rq):
+    def __init__(self, rq):
         self.requestId = rq['requestId']
         self.categoryId = rq['categoryId']
         self.title = rq['title']
