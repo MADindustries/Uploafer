@@ -10,7 +10,7 @@ from wmapi import releaseInfo, torrentGroup, artistInfo
 from settings import USERNAME, PASSWORD, ANNOUNCE, WM2_ROOT, WM2_MEDIA, WORKING_ROOT, FUZZ_RATIO
 
 gazelle_url = 'https://passtheheadphones.me/'
-resumeList =[]
+resumeList = set([])
 potential_uploads = 0
 
 # TODO: Proper error handling
@@ -74,14 +74,14 @@ def findRiFiles(wm2media, resume):
                     log.warning('No ReleaseInfo file found for path "{0}"'.format(path))
             else:
                 log.warning('"{0}" is not a directory.'.format(path))
-        if resume:
-            path = os.path.join(WORKING_ROOT, 'resume.wm2')
-            if os.path.isfile(path):
-                with open(path, 'rb') as resFile:
-                    resumeList = pickle.load(resFile)
-                riList = list(set(riList) - set(resumeList))
-            else:
-                log.warning('Cannot access "{0}"'.format(path))
+        path = os.path.join(WORKING_ROOT, 'resume.wm2')
+        if os.path.isfile(path):
+            with open(path, 'rb') as resFile:
+                resumeList = set(pickle.load(resFile))
+                if resume:
+                    riList = list(set(riList) - resumeList)
+                else:
+                    log.warning('Cannot access "{0}"'.format(path))
         return sorted(riList)
     except:
         raise
@@ -119,7 +119,7 @@ def retrieveArtist(session, artist):
 def findBestGroup(localGrp, artist):
     #TODO: Check catalogue numbers!
     bestGrp = localGrp #placeholder
-    bestGrp.match = 0
+    bestGrp.match = -1
     for group in artist.torrentgroup:
         if (localGrp.catalogueNumber != '') and (localGrp.catalogueNumber == group.groupCatalogueNumber):
             bestGrp = group
@@ -134,8 +134,10 @@ def findBestGroup(localGrp, artist):
     return bestGrp
 
 def requestUpload(ri, remoteGrp, artist, auto=False):
+    global potential_uploads
+    potential_uploads += 1
     print('')
-    print('No match found for "{0}" [{1}/{2}]:  {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, ri.group.path))
+    print('{4} - No match found for "{0}" [{1}/{2}]:  {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, ri.group.path, str(potential_uploads)))
     print('Closest match ({0}% likeness): {1}'.format(remoteGrp.match, remoteGrp.groupName))
     #Next line, what if more than one artist or secondary artist identifier?
     if auto:
@@ -147,7 +149,6 @@ def requestUpload(ri, remoteGrp, artist, auto=False):
         return False
 
 def buildUpload(ri, artist, remoteGrp):
-    potential_uploads += 1
     artists = album_artists(album)
     remaster = remaster_status(album)
     data = [
@@ -215,7 +216,7 @@ def main():
     riList = findRiFiles(WM2_MEDIA, args.resume)
     #Check for existing torrents
     for file in riList:
-        log.debug('Currently processing: ' + file)
+        log.debug('Currently processing: {0}'.format(file))
 
         #Load the local torrent group we are working with
         ri = loadReleaseInfo(file)
@@ -257,9 +258,8 @@ def main():
         else:
             print('Moving on..')
         
-        if args.resume:
-            resumeList.append(file)
-            saveResume()
+        resumeList.add(file)
+        saveResume()
             
     print('Potential Uploads: {0}'.format(str(potential_uploads)))
 
