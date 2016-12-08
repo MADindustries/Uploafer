@@ -116,17 +116,17 @@ def retrieveArtist(session, artist):
         raise
     return artist
 
-def findBestGroup(localGrp, artist):
+def findBestGroup(ri, artist):
     #TODO: Check catalogue numbers!
-    bestGrp = localGrp #placeholder
+    bestGrp = ri.group #placeholder
     bestGrp.match = -1
     for group in artist.torrentgroup:
-        if (localGrp.catalogueNumber != '') and (localGrp.catalogueNumber == group.groupCatalogueNumber):
+        if (ri.group.catalogueNumber != '') and (ri.group.catalogueNumber == group.groupCatalogueNumber):
             bestGrp = group
             bestGrp.match = 101
             break
         else:
-            group.match = fuzz.ratio(localGrp.name, group.groupName)
+            group.match = fuzz.ratio(ri.group.name, group.groupName)
             if group.match > bestGrp.match:
                 bestGrp = group
                 if bestGrp.match == 100:
@@ -143,7 +143,7 @@ def requestUpload(ri, remoteGrp, artist, auto=False):
     if auto:
         log.info("Upload not yet implemented.")
         return False
-    if query_yes_no('Do you want to upload to artist "{0}" [{1}]?'.format(localGrp.musicInfo.artists[0].name, artist.url)):
+    if query_yes_no('Do you want to upload to artist "{0}" [{1}]?'.format(ri.group.musicInfo.artists[0].name, artist.url)):
         return True
     else:
         return False
@@ -204,6 +204,7 @@ def uploadTorrent(localGroup, remoteGroup):
     pass
 
 def saveResume():
+    #TODO: 
     path = os.path.join(WORKING_ROOT, 'resume.wm2')
     with open(path, 'wb') as resFile:
         pickle.dump(resumeList, resFile)
@@ -223,35 +224,36 @@ def main():
         if ri.group.categoryId != 1:
             log.info('Group "{0}" is not a music group. Skipping..'.format(ri.group.name))
             continue
-        localGrp = ri.group
-        
+        if ri.torrent.encoding == 'V2 (VBR)':
+            log.info('Group "{0}" is in MP3 V2 format. Skipping..'.format(ri.group.name))
+            continue
         #Open session
         session = whatapi.WhatAPI(USERNAME, PASSWORD)
             #TODO: Store/retrieve cookie
 
         #Load the best remote group to compare with
         try:
-            if len(localGrp.musicInfo.artists) > 0:
-                artist = retrieveArtist(session, localGrp.musicInfo.artists[0].name) #What if more than one?
-            elif len(localGrp.musicInfo.composers) > 0:
-                artist = retrieveArtist(session, localGrp.musicInfo.composers[0].name)
+            if len(ri.group.musicInfo.artists) > 0:
+                artist = retrieveArtist(session, ri.group.musicInfo.artists[0].name) #What if more than one?
+            elif len(ri.group.musicInfo.composers) > 0:
+                artist = retrieveArtist(session, ri.group.musicInfo.composers[0].name)
             else:
-                log.error('Neither Artist nor Composer provided for ID "{0}". Skipping..'.format(localGrp.categoryId))
+                log.error('Neither Artist nor Composer provided for ID "{0}". Skipping..'.format(ri.group.categoryId))
                 continue
         except:
-            log.error('Artist not found: {0}'.format(localGrp.musicInfo.artists[0].name))
+            log.error('Artist not found: {0}'.format(ri.group.musicInfo.artists[0].name))
             #TODO: Put better reporting / handling here (It's an UPLOAD!')
             continue
-        remoteGrp = findBestGroup(localGrp, artist) #Closest matching group by artist
+        remoteGrp = findBestGroup(ri, artist) #Closest matching group by artist
 
         #Update user
         if remoteGrp.match == 101:
-            log.info('Exact catalogue match found for "{0}" [{1}/{2}]: {3}'.format(localGrp.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
+            log.info('Exact catalogue match found for "{0}" [{1}/{2}]: {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
         elif remoteGrp.match == 100:
-            log.info('Exact title match found for "{0}" [{1}/{2}]: {3}'.format(localGrp.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
+            log.info('Exact title match found for "{0}" [{1}/{2}]: {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
             #TODO: Check for possible seeding/trumping opportunity
         elif remoteGrp.match >= FUZZ_RATIO:
-            log.info('Probable ({0}%) match found for "{1}" [{2}/{3}]: {4}'.format(remoteGrp.match, localGrp.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
+            log.info('Probable ({0}%) match found for "{1}" [{2}/{3}]: {4}'.format(remoteGrp.match, ri.group.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
             #TODO: Add to list of potential trumping opportunities
         elif requestUpload(ri, remoteGrp, artist, args.auto):
             buildUpload(ri, artist, remoteGrp)
