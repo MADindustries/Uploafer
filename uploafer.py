@@ -216,9 +216,12 @@ def main():
     #Load file list and skip completed if required
     riList = findRiFiles(WM2_MEDIA, args.resume)
     #Check for existing torrents
+    current = 0
     for file in riList:
-        log.debug('Currently processing: {0}'.format(file))
-
+        current += 1
+        log.debug('Currently processing [{1}/{2}]: {0}'.format(file, current, len(riList)))
+        sys.stdout.write('Progress: {0}/{1} \r'.format(current, len(riList))) #TODO: Track progress count better = faster
+        sys.stdout.flush()
         #Load the local torrent group we are working with
         ri = loadReleaseInfo(file)
         if ri.group.categoryId != 1:
