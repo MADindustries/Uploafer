@@ -4,3 +4,4 @@ tests.py
 ReleaseInfo2.txt
 wm2root
 settings.py
+.vscode/*

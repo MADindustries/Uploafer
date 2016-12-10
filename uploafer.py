@@ -1,17 +1,36 @@
-import argparse
-import whatapi
-import json
-import os
-import sys
-import pickle
-import logging as log
-from fuzzywuzzy import fuzz
-from wmapi import releaseInfo, torrentGroup, artistInfo
-from settings import USERNAME, PASSWORD, ANNOUNCE, WM2_ROOT, WM2_MEDIA, WORKING_ROOT, FUZZ_RATIO
+#!/usr/bin/env python3
 
+import argparse
+import json
+import logging as log
+import os
+import pickle
+import shutil
+import subprocess
+import sys
+
+from fuzzywuzzy import fuzz
+
+from settings import (ANNOUNCE, FUZZ_RATIO, PASSWORD, USERNAME, WM2_MEDIA,
+                      WM2_ROOT, WORKING_ROOT)
+from whatapi import WhatAPI, ext_matcher, locate
+from wmapi import artistInfo, releaseInfo, torrentGroup
+
+VERSION = "0.1b"
 gazelle_url = 'https://passtheheadphones.me/'
 resumeList = set([])
 potential_uploads = 0
+headers = {
+    'Connection': 'keep-alive',
+    'Cache-Control': 'max-age=0',
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_3)'\
+        'AppleWebKit/535.11 (KHTML, like Gecko) Chrome/17.0.963.79'\
+        'Safari/535.11',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9'\
+        ',*/*;q=0.8',
+    'Accept-Encoding': 'gzip,deflate,sdch',
+    'Accept-Language': 'en-US,en;q=0.8',
+    'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.3'}
 
 # TODO: Proper error handling
 
@@ -80,8 +99,8 @@ def findRiFiles(wm2media, resume):
                 resumeList = set(pickle.load(resFile))
                 if resume:
                     riList = list(set(riList) - resumeList)
-                else:
-                    log.warning('Cannot access "{0}"'.format(path))
+        else:
+            log.warning('Cannot access "{0}"'.format(path))
         return sorted(riList)
     except:
         raise
@@ -92,21 +111,37 @@ def loadReleaseInfo(path):
         riJson = json.loads(riFile.read())
         ri = releaseInfo(riJson)
         ri.group.path = path
-
-        #TODO: Below may not be necessary. See ri.torrent.filePath for a possible replacement
-        contents = next(os.walk(path))[1]
-        if len(contents) == 1:
-            ri.group.mediaDir = contents[0] #contains only the folder name. no path
-        elif len(contents) < 1:
-            log.error('Missing or malformed media in "{0}". Skipping..'.format(path))
-            #TODO: Raise custom error here
-        else:
-            log.error('Multiple directories in "{0}". Skipping..'.format(path))
-            #TODO: Raise custom error here
-
     except:
         raise
     return ri
+
+def loadData(ri):
+    #TODO: Below may not be necessary. See ri.torrent.filePath for a possible replacement
+    try:
+        contents = next(os.walk(ri.group.path))[1]
+        if len(contents) == 1:
+            if ri.torrent.filePath != contents[0]:
+                log.warn('Original path "{0}" does not match directory "{1}"'.format(ri.torrent.filePath, contents[0]))
+                ri.torrent.filePath = contents[0]
+            ri.torrent.fullPath = os.path.join(ri.group.path, ri.torrent.filePath)
+            ri.torrent.logFiles = locate(ri.group.path, ext_matcher('.log'))
+            ri.torrent.logFiles = [(str(i) + '.log', open(logfile, 'rb'), "application/octet-stream") for i, logfile in enumerate(ri.torrent.logFiles)]
+        elif len(contents) < 1:
+            log.error('Missing or malformed media directory in "{0}". Skipping..'.format(ri.group.path))
+            #TODO: Raise custom error here
+        else:
+            log.error('Multiple directories in "{0}". Skipping..'.format(ri.group.path))
+            #TODO: Raise custom error here
+    except:
+        raise
+
+def killDSStore(path):
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            if file.endswith('.DS_Store'):
+                path = os.path.join(root, file)
+                if os.remove(path):
+                    log.warn("Unable to delete .DS_Store files")
 
 def retrieveArtist(session, artist):
     log.debug("Artist search: {0}".format(artist))
@@ -148,11 +183,36 @@ def requestUpload(ri, remoteGrp, artist, auto=False):
     else:
         return False
 
-def buildUpload(ri, artist, remoteGrp):
-    artists = album_artists(album)
-    remaster = remaster_status(album)
+def uploadTorrent(ri, session):
+    try:
+        dataPath = shutil.copytree(ri.torrent.fullPath, os.path.join(WORKING_ROOT, ri.torrent.filePath))
+        torrent = make_torrent(dataPath)
+        auth = session.request("index")['authkey']
+        data, files = buildUpload(ri, torrent, auth)
+        url = os.path.join(gazelle_url, 'upload.php')
+        upload_headers = dict(headers)
+        upload_headers["referer"] = url
+        upload_headers["origin"] = url.rsplit("/", 1)[0]
+
+    except:
+        raise
+
+def make_torrent(dataPath):
+    killDSStore(dataPath) #Because Macs
+    torrent = dataPath + ".torrent"
+    if os.path.exists(torrent):
+        os.remove(torrent)
+    if not os.path.exists(os.path.dirname(torrent)):
+        os.path.makedirs(os.path.dirname(torrent))
+    command = ["mktorrent", "-p", "-s", "PTH", "-a", ANNOUNCE, "-o", torrent, dataPath]
+    subprocess.check_output(command, stderr=subprocess.STDOUT)
+    torrent = ('torrent.torrent', open(torrent, 'rb'), "application/octet-stream")
+    return torrent
+
+def buildUpload(ri, torrent, auth):
     data = [
         ("submit", "true"),  # the submit button
+        ("auth", auth),
         ("type", "0"),  # music
         ("title", ri.group.name), # album name
         ("year", ri.group.year), # album year
@@ -164,44 +224,23 @@ def buildUpload(ri, artist, remoteGrp):
         ("remaster_title", ri.torrent.remasterTitle),
         ("remaster_record_label", ri.torrent.remasterRecordLabel),
         ("remaster_catalogue_number", ri.torrent.remasterCatalogueNumber),
+        ("scene", ri.torrent.scene),
         ("format", ri.torrent.format),
         ("bitrate", ri.torrent.encoding),
         ("other_bitrate", ""),  # n/a
         ("media", ri.torrent.media),  # Media source
-        ("genre_tags", tags[0]),  # blank - this is the dropdown of official tags
+        ("genre_tags", ri.group.tags[0]),  # blank - this is the dropdown of official tags
         ("tags", ", ".join(ri.group.tags)),  # classical, hip.hop, etc. (comma separated)
         ("image", ri.group.wikiImage),  #TODO: What if this is a whatimg link??
-        ("album_desc", ri.torrent.description),
-        ("release_desc", "UPLOAFED!") #TODO: You are better than this
+        ("album_desc", ri.group.wikiBody),
+        ("release_desc", "Uploafed using version {0} from WCDID: {1}. ReleaseInfo available.".format(VERSION, ri.group.id)) #TODO: You are better than this
     ]
-    for artist in artists:
-        importance = 1
-        if " feat. " in artist:
-            artist = artist.split(" feat. ")[1]
-            importance = 2
-        data.append(("artists[]", artist))
-        data.append(("importance[]", importance))
+    data.extend(ri.group.musicInfo.uploaddata)
     files = []
-    for logfile in logfiles:
+    for logfile in ri.torrent.logFiles:
         files.append(("logfiles[]", logfile))
     files.append(("file_input", torrent))
     return data, files
-
-def make_torrent(localGroup, remoteGroup):
-    #TODO: This is mess. Make it not mess
-    m_root = os.path.join(WORKING_ROOT, str(remoteGroup.id))
-    m_root = os.path.join(m_root, localGroup.mediaDir)
-    torrent = os.path.join(WORKING_ROOT, localGroup.mediaDir) + ".torrent"
-    if os.path.exists(torrent):
-        os.remove(torrent)
-    if not os.path.exists(os.path.dirname(torrent)):
-        os.path.makedirs(os.path.dirname(torrent))
-    command = ["mktorrent", "-p", "-s", "PTH", "-a", ANNOUNCE, "-o", torrent, m_root]
-    subprocess.check_output(command, stderr=subprocess.STDOUT)
-    return torrent
-
-def uploadTorrent(localGroup, remoteGroup):
-    pass
 
 def saveResume():
     #TODO: 
@@ -222,7 +261,8 @@ def main():
         log.debug('Currently processing [{1}/{2}]: {0}'.format(file, current, len(riList)))
         sys.stdout.write('Progress: {0}/{1} \r'.format(current, len(riList))) #TODO: Track progress count better = faster
         sys.stdout.flush()
-        #Load the local torrent group we are working with
+
+        #Load the local torrent group we are working with and filter exceptions
         ri = loadReleaseInfo(file)
         if ri.group.categoryId != 1:
             log.info('Group "{0}" is not a music group. Skipping..'.format(ri.group.name))
@@ -230,8 +270,15 @@ def main():
         if ri.torrent.encoding == 'V2 (VBR)':
             log.info('Group "{0}" is in MP3 V2 format. Skipping..'.format(ri.group.name))
             continue
+        if ri.torrent.size > (5 * (1024 ** 3)): #Larger than 5GB
+            log.info('Group "{0}" is larger than 5GB in size. Skipping..'.format(ri.group.name))
+            continue
+        if ri.group.wikiBody == "":
+            log.info('Group "{0}" does not have an album description. Skipping..'.format(ri.group.name))
+            continue
+        
         #Open session
-        session = whatapi.WhatAPI(USERNAME, PASSWORD)
+        session = WhatAPI(USERNAME, PASSWORD)
             #TODO: Store/retrieve cookie
 
         #Load the best remote group to compare with
@@ -259,7 +306,8 @@ def main():
             log.info('Probable ({0}%) match found for "{1}" [{2}/{3}]: {4}'.format(remoteGrp.match, ri.group.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
             #TODO: Add to list of potential trumping opportunities
         elif requestUpload(ri, remoteGrp, artist, args.auto):
-            buildUpload(ri, artist, remoteGrp)
+            loadData(ri)
+            uploadTorrent(ri, session)
         else:
             print('Moving on..')
         

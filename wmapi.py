@@ -104,8 +104,8 @@ class torrentGroup(object):
     def __init__(self, tg):
         self.group = releaseGroup(tg['group'])
         self.torrents = []
-        for i in range(0,len(tg['torrents'])):
-            self.torrents.append(torrentInfo(tg['torrents'][i]))
+        for i, torrent in enumerate(tg['torrents']):
+            self.torrents.append(torrentInfo(torrent))
 
 
 #WM2 Format ReleaseInfo
@@ -142,7 +142,11 @@ class torrentInfo(object):
         self.seeders = ti['seeders']
         self.encoding = ti['encoding']
         self.uderId = ti['userId']
-        self.scene = ti['scene']
+        self.sceneBool = ti['scene']
+        if ti['scene'] == True:
+            self.scene = 'on'
+        else:
+            self.scene = None
         self.fileList = ti['fileList']
         self.logScore = ti['logScore']
         self.leechers = ti['leechers']
@@ -159,7 +163,11 @@ class torrentInfo(object):
         self.format = ti['format']
         self.remasterCatalogueNumber = ti['remasterCatalogueNumber']
         self.reported = ti['reported']
-        self.remastered = ti['remastered']
+        self.remasteredBool = ti['remastered']
+        if ti['remastered'] == True:
+            self.remastered = 'on'
+        else:
+            self.remastered = None
         self.remasterRecordLabel = ti['remasterRecordLabel']
         self.hasLog = ti['hasLog']
         self.remasterTitle = ti['remasterTitle']
@@ -168,9 +176,11 @@ class torrentInfo(object):
         self.fileCount = ti['fileCount']
         if wm2:
             self.infoHash = ti['infoHash'] #Do I still need this? Better check...
+            self.logFiles = []
 
 class musicInfo(object):
     def __init__(self, mi):
+        self.uploaddata = []
         self.composers = []
         self.dj = []
         self.producer = []
@@ -178,20 +188,34 @@ class musicInfo(object):
         self.remixedBy = []
         self.artists = []
         self.miWith = []
-        for i in range(0,len(mi['composers'])):
-            self.composers.append(miComposer(mi['composers'][i]))
-        for i in range(0,len(mi['dj'])):
-            self.dj.append(miDJ(mi['dj'][i]))
-        for i in range(0,len(mi['producer'])):
-            self.producer.append(miProducer(mi['producer'][i]))
-        for i in range(0,len(mi['conductor'])):
-            self.conductor.append(miConductor(mi['conductor'][i]))
-        for i in range(0,len(mi['remixedBy'])):
-            self.remixedBy.append(miRemixedBy(mi['remixedBy'][i]))
-        for i in range(0,len(mi['artists'])):
-            self.artists.append(miArtists(mi['artists'][i]))
-        for i in range(0,len(mi['with'])):
-            self.miWith.append(miWith(mi['with'][i]))
+        for i, collab in enumerate(mi['composers']):
+            self.composers.append(miComposer(collab))
+            self.uploaddata.append(("artists[]", collab['name']))
+            self.uploaddata.append(("importance[]", 4))
+        for i, collab in enumerate(mi['dj']):
+            self.dj.append(miDJ(dj))
+            self.uploaddata.append(("artists[]", collab['name']))
+            self.uploaddata.append(("importance[]", 6))
+        for i, collab in enumerate(mi['producer']):
+            self.producer.append(miProducer(collab))
+            self.uploaddata.append(("artists[]", collab['name']))
+            self.uploaddata.append(("importance[]", 7))
+        for i, collab in enumerate(mi['conductor']):
+            self.conductor.append(miConductor(collab))
+            self.uploaddata.append(("artists[]", collab['name']))
+            self.uploaddata.append(("importance[]", 5))
+        for i, collab in enumerate(mi['remixedBy']):
+            self.remixedBy.append(miRemixedBy(collab))
+            self.uploaddata.append(("artists[]", collab['name']))
+            self.uploaddata.append(("importance[]", 3))
+        for i, collab in enumerate(mi['artists']):
+            self.artists.append(miArtists(collab))
+            self.uploaddata.append(("artists[]", collab['name']))
+            self.uploaddata.append(("importance[]", 1))
+        for i, collab in enumerate(mi['with']):
+            self.miWith.append(miWith(collab))
+            self.uploaddata.append(("artists[]", collab['name']))
+            self.uploaddata.append(("importance[]", 2))
 
 class collaborator(object):
     """
@@ -212,29 +236,36 @@ class collaborator(object):
 
 class miComposer(collaborator):
     def collab_type(self):
+        self.importance = 4
         return 'composer'
 
 class miDJ(collaborator):
     def collab_type(self):
+        self.importance = 6
         return 'dj'
 
 class miProducer(collaborator):
     def collab_type(self):
+        self.importance = 7
         return 'producer'
 
 class miConductor(collaborator):
     def collab_type(self):
+        self.importance = 5
         return 'conductor'
 
 class miRemixedBy(collaborator):
     def collab_type(self):
+        self.importance = 3
         return 'remixedBy'
 
 class miArtists(collaborator):
     def collab_type(self):
+        self.importance = 1
         return 'artists'
 
 class miWith(collaborator):
     def collab_type(self):
+        self.importance = 2
         return 'with'
 
