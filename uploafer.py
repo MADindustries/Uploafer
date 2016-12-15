@@ -354,7 +354,7 @@ def main():
         elif requestUpload(ri, remoteGrp, artist, auto=args.auto):
             loadData(ri)
             dataPath = uploadTorrent(ri, session)
-            importTorrent(dataPath)
+            #importTorrent(dataPath)
         else:
             print('Moving on..')
         
