@@ -334,6 +334,10 @@ def main():
             continue
         remoteGrp = findBestGroup(ri, artist) #Closest matching group by artist
 
+        #Save progress
+        resumeList.add(file)
+        saveResume()
+
         #Update user
         if remoteGrp.match == 101:
             log.info('Exact catalogue match found for "{0}" [{1}/{2}]: {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
@@ -350,8 +354,6 @@ def main():
         else:
             print('Moving on..')
         
-        resumeList.add(file)
-        saveResume()
             
     print('Potential Uploads: {0}'.format(str(potential_uploads)))
 
