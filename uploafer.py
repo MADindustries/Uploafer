@@ -259,6 +259,10 @@ def importTorrent(torrentPath):
             importExternal = os.path.join(WM2_ROOT, 'manage.py import_external_what_torrent.py')
             command = [importExternal, "--base-dir", WORKING_ROOT, torrentPath]
             subprocess.run(command, stderr=subprocess.STDOUT)
+            
+            # Cleanup
+            #os.remove(torrentPath)
+            #shutil.rmtree(dataPath)
         else:
             raise
     except:
@@ -314,7 +318,11 @@ def main():
                 log.error('Neither Artist nor Composer provided for ID "{0}". Skipping..'.format(ri.group.categoryId))
                 continue
         except:
-            log.error('Artist not found: {0}'.format(ri.group.musicInfo.artists[0].name))
+            log.info('Artist not found: {0}'.format(ri.group.musicInfo.artists[0].name))
+            if requestUpload(ri, remoteGrp, artist, args.auto):
+                loadData(ri)
+                dataPath = uploadTorrent(ri, session)
+                importTorrent(dataPath)
             #TODO: Put better reporting / handling here (It's an UPLOAD!')
             continue
         remoteGrp = findBestGroup(ri, artist) #Closest matching group by artist
