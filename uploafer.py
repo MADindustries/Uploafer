@@ -301,8 +301,8 @@ def main():
         if ri.group.categoryId != 1:
             log.info('Group "{0}" is not a music group. Skipping..'.format(ri.group.name))
             continue
-        if ri.torrent.encoding == 'V2 (VBR)':
-            log.info('Group "{0}" is in MP3 V2 format. Skipping..'.format(ri.group.name))
+        if ri.torrent.encoding != 'FLAC':
+            log.info('Group "{0}" is not in FLAC format. Skipping..'.format(ri.group.name))
             continue
         if ri.torrent.size > (5 * (1024 ** 3)): #Larger than 5GB
             log.info('Group "{0}" is larger than 5GB in size. Skipping..'.format(ri.group.name))
