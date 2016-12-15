@@ -193,7 +193,7 @@ class musicInfo(object):
             self.uploaddata.append(("artists[]", collab['name']))
             self.uploaddata.append(("importance[]", 4))
         for i, collab in enumerate(mi['dj']):
-            self.dj.append(miDJ(dj))
+            self.dj.append(miDJ(collab))
             self.uploaddata.append(("artists[]", collab['name']))
             self.uploaddata.append(("importance[]", 6))
         for i, collab in enumerate(mi['producer']):

@@ -18,7 +18,7 @@ from wmapi import artistInfo, releaseInfo, torrentGroup
 
 html_to_bbcode = HTML2BBCode()
 
-VERSION = "0.2b"
+VERSION = "0.5b"
 gazelle_url = 'https://passtheheadphones.me/'
 resumeList = set([])
 potential_uploads = 0
@@ -170,20 +170,27 @@ def findBestGroup(ri, artist):
                     break
     return bestGrp
 
-def requestUpload(ri, remoteGrp, artist, auto=False):
+def requestUpload(ri, remoteGrp=None, artist=None, auto=False):
     global potential_uploads
     potential_uploads += 1
-    print('')
-    print('{4} - No match found for "{0}" [{1}/{2}]:  {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, ri.group.path, str(potential_uploads)))
-    print('Closest match ({0}% likeness): {1}'.format(remoteGrp.match, remoteGrp.groupName))
-    #Next line, what if more than one artist or secondary artist identifier?
     if auto:
-        log.info("Upload not yet implemented.")
+        log.info("Auto mode disables upload.")
         return False
-    if query_yes_no('Do you want to upload to artist "{0}" [{1}]?'.format(ri.group.musicInfo.artists[0].name, artist.url)):
-        return True
+    print('')
+    if remoteGrp == None or artist == None:
+        print('{4} - No match found for "{0}" [{1}/{2}] due to missing artist:  {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, ri.group.path, str(potential_uploads)))
+        if query_yes_no('Do you want to upload and create new artist page "{0}"?'.format(ri.group.musicInfo.artists[0].name)):
+            return True
+        else:
+            return False
     else:
-        return False
+        print('{4} - No match found for "{0}" [{1}/{2}]:  {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, ri.group.path, str(potential_uploads)))
+        print('Closest match ({0}% likeness): {1}'.format(remoteGrp.match, remoteGrp.groupName))
+        #Next line, what if more than one artist or secondary artist identifier?
+        if query_yes_no('Do you want to upload to artist "{0}" [{1}]?'.format(ri.group.musicInfo.artists[0].name, artist.url)):
+            return True
+        else:
+            return False
 
 def uploadTorrent(ri, session):
     try:
@@ -201,13 +208,11 @@ def uploadTorrent(ri, session):
         r = session.session.post(url, data=data, files=files, headers=upload_headers)
         if "torrent_comments" not in r.text:
             log.error('Upload failed!')
+            return None
         else:
             log.info('Upload successful.')
             #TODO: Run import script here!!
-            quit()
-            os.remove(torrentPath)
-            shutil.rmtree(dataPath)
-        return dataPath
+            return torrentPath
     except:
         raise
 
@@ -254,18 +259,27 @@ def buildUpload(ri, torrent, auth):
     files.append(("file_input", torrent))
     return data, files
 
-def importTorrent(dataPath):
+def importTorrent(torrentPath):
     try:
-        log.info('Importing torrent into WM..')
-        importExternal = os.path.join(WM2_ROOT, 'manage.py import_external_what_torrent.py')
-        command = [importExternal, "--base-dir", dataPath]
-        print(subprocess.check_output(command, stderr=subprocess.STDOUT))
+        if torrentPath is not None:
+            #There is a better way to do this
+            log.info('Importing torrent into WM..')
+            importExternal = os.path.join(WM2_ROOT, 'manage.py')
+            command = [importExternal, 'import_external_what_torrent.py', '--base-dir', WORKING_ROOT, torrentPath]
+            output = subprocess.check_output(command, stderr=subprocess.STDOUT)
+            print(output)
+            # Cleanup
+            #os.remove(torrentPath)
+            #shutil.rmtree(dataPath)
+        else:
+            raise
     except:
         log.error('Error importing torrent into WM')
         raise
 
-def saveResume():
-    #TODO: 
+def saveResume(file):
+    global resumeList
+    resumeList.add(file)
     path = os.path.join(WORKING_ROOT, 'resume.wm2')
     with open(path, 'wb') as resFile:
         pickle.dump(resumeList, resFile)
@@ -288,15 +302,17 @@ def main():
         ri = loadReleaseInfo(file)
         if ri.group.categoryId != 1:
             log.info('Group "{0}" is not a music group. Skipping..'.format(ri.group.name))
+            saveResume(file)
             continue
-        if ri.torrent.encoding == 'V2 (VBR)':
-            log.info('Group "{0}" is in MP3 V2 format. Skipping..'.format(ri.group.name))
+        if ri.torrent.format != 'FLAC':
+            log.info('Group "{0}" is not in FLAC format. Skipping..'.format(ri.group.name))
             continue
         if ri.torrent.size > (5 * (1024 ** 3)): #Larger than 5GB
             log.info('Group "{0}" is larger than 5GB in size. Skipping..'.format(ri.group.name))
             continue
         if ri.group.wikiBody == "":
             log.info('Group "{0}" does not have an album description. Skipping..'.format(ri.group.name))
+            saveResume(file)
             continue
         
         #Open session
@@ -313,10 +329,18 @@ def main():
                 log.error('Neither Artist nor Composer provided for ID "{0}". Skipping..'.format(ri.group.categoryId))
                 continue
         except:
-            log.error('Artist not found: {0}'.format(ri.group.musicInfo.artists[0].name))
+            log.info('Artist not found: {0}'.format(ri.group.musicInfo.artists[0].name))
+            saveResume(file)
+            if requestUpload(ri, auto=args.auto):
+                loadData(ri)
+                dataPath = uploadTorrent(ri, session)
+                #importTorrent(dataPath)
             #TODO: Put better reporting / handling here (It's an UPLOAD!')
             continue
         remoteGrp = findBestGroup(ri, artist) #Closest matching group by artist
+
+        #Save progress
+        saveResume(file)
 
         #Update user
         if remoteGrp.match == 101:
@@ -327,15 +351,13 @@ def main():
         elif remoteGrp.match >= FUZZ_RATIO:
             log.info('Probable ({0}%) match found for "{1}" [{2}/{3}]: {4}'.format(remoteGrp.match, ri.group.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
             #TODO: Add to list of potential trumping opportunities
-        elif requestUpload(ri, remoteGrp, artist, args.auto):
+        elif requestUpload(ri, remoteGrp, artist, auto=args.auto):
             loadData(ri)
             dataPath = uploadTorrent(ri, session)
             importTorrent(dataPath)
         else:
             print('Moving on..')
         
-        resumeList.add(file)
-        saveResume()
             
     print('Potential Uploads: {0}'.format(str(potential_uploads)))
 
