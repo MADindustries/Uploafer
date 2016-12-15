@@ -260,6 +260,9 @@ def importTorrent(dataPath):
         importExternal = os.path.join(WM2_ROOT, 'manage.py import_external_what_torrent.py')
         command = [importExternal, "--base-dir", dataPath]
         print(subprocess.check_output(command, stderr=subprocess.STDOUT))
+    except:
+        log.error('Error importing torrent into WM')
+        raise
 
 def saveResume():
     #TODO: 
