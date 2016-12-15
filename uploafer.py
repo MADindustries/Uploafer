@@ -18,7 +18,7 @@ from wmapi import artistInfo, releaseInfo, torrentGroup
 
 html_to_bbcode = HTML2BBCode()
 
-VERSION = "0.5b"
+VERSION = "0.7b"
 gazelle_url = 'https://passtheheadphones.me/'
 resumeList = set([])
 potential_uploads = 0
@@ -248,10 +248,18 @@ def buildUpload(ri, torrent, auth):
         ("media", ri.torrent.media),  # Media source
         ("genre_tags", ri.group.tags[0]),  # blank - this is the dropdown of official tags
         ("tags", ", ".join(ri.group.tags)),  # classical, hip.hop, etc. (comma separated)
-        ("image", ri.group.wikiImage),  #TODO: What if this is a whatimg link??
         ("album_desc", html_to_bbcode.feed(ri.group.wikiBody).replace('\n\n', '\n')),
-        ("release_desc", "Uploafed using version {0} from WCDID: {1}. ReleaseInfo available.".format(VERSION, ri.group.id))
+        ("release_desc", "Uploafed using version {0} from WCDID: {1}. ReleaseInfo available.".format(VERSION, ri.torrent.id))
     ]
+    desc = "Uploafed using version {0} from WCDID: {1}. ReleaseInfo available.".format(VERSION, ri.torrent.id)
+    if ri.torrent.media == 'Vinyl':
+        data.append[('release_desc', ri.torrent.description + '\n\n' + desc)]
+    else:
+        data.append(('release_desc', desc))
+    if 'whatimg' not in ri.group.wikiImage:
+        data.append(("image", ri.group.wikiImage))
+    else:
+        data.append(("image", ''))
     data.extend(ri.group.musicInfo.uploaddata)
     files = []
     for logfile in ri.torrent.logFiles:
@@ -339,25 +347,26 @@ def main():
             continue
         remoteGrp = findBestGroup(ri, artist) #Closest matching group by artist
 
-        #Save progress
-        saveResume(file)
-
         #Update user
         if remoteGrp.match == 101:
             log.info('Exact catalogue match found for "{0}" [{1}/{2}]: {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
+            saveResume(file)
         elif remoteGrp.match == 100:
             log.info('Exact title match found for "{0}" [{1}/{2}]: {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
+            saveResume(file)
             #TODO: Check for possible seeding/trumping opportunity
         elif remoteGrp.match >= FUZZ_RATIO:
             log.info('Probable ({0}%) match found for "{1}" [{2}/{3}]: {4}'.format(remoteGrp.match, ri.group.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
+            saveResume(file)
             #TODO: Add to list of potential trumping opportunities
         elif requestUpload(ri, remoteGrp, artist, auto=args.auto):
+            saveResume(file)
             loadData(ri)
             dataPath = uploadTorrent(ri, session)
             #importTorrent(dataPath)
         else:
+            saveResume(file)
             print('Moving on..')
-        
             
     print('Potential Uploads: {0}'.format(str(potential_uploads)))
 
