@@ -178,7 +178,7 @@ def requestUpload(ri, remoteGrp=None, artist=None, auto=False):
         return False
     print('')
     if remoteGrp == None or artist == None:
-        print('{4} - No match found for "{0}" [{1}/{2}] due to missing artist:  {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, ri.group.path, str(potential_uploads)))
+        print('{4} - No match found for "{0}" [{1}/{2}] due to a missing artist page. {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, ri.group.path, str(potential_uploads)))
         if query_yes_no('Do you want to upload and create new artist page "{0}"?'.format(ri.group.musicInfo.artists[0].name)):
             return True
         else:
@@ -253,7 +253,7 @@ def buildUpload(ri, torrent, auth):
     ]
     desc = "Uploafed using version {0} from WCDID: {1}. ReleaseInfo available.".format(VERSION, ri.torrent.id)
     if ri.torrent.media == 'Vinyl':
-        data.append[('release_desc', ri.torrent.description + '\n\n' + desc)]
+        data.append(('release_desc', ri.torrent.description + '\n\n' + desc))
     else:
         data.append(('release_desc', desc))
     if 'whatimg' not in ri.group.wikiImage:
