@@ -18,7 +18,7 @@ from wmapi import artistInfo, releaseInfo, torrentGroup
 
 html_to_bbcode = HTML2BBCode()
 
-VERSION = "0.3b"
+VERSION = "0.4b"
 gazelle_url = 'https://passtheheadphones.me/'
 resumeList = set([])
 potential_uploads = 0
@@ -178,7 +178,7 @@ def requestUpload(ri, remoteGrp=None, artist=None, auto=False):
         return False
     print('')
     if remoteGrp == None or artist == None:
-        print('{4} - No artist match found for "{0}" [{1}/{2}]:  {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, ri.group.path, str(potential_uploads)))
+        print('{4} - No match found for "{0}" [{1}/{2}] due to missing artist:  {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, ri.group.path, str(potential_uploads)))
         if query_yes_no('Do you want to upload and create new artist page "{0}"?'.format(ri.group.musicInfo.artists[0].name)):
             return True
         else:
@@ -276,8 +276,9 @@ def importTorrent(torrentPath):
         log.error('Error importing torrent into WM')
         raise
 
-def saveResume():
-    #TODO: 
+def saveResume(file):
+    global resumeList
+    resumeList.add(file)
     path = os.path.join(WORKING_ROOT, 'resume.wm2')
     with open(path, 'wb') as resFile:
         pickle.dump(resumeList, resFile)
@@ -300,6 +301,7 @@ def main():
         ri = loadReleaseInfo(file)
         if ri.group.categoryId != 1:
             log.info('Group "{0}" is not a music group. Skipping..'.format(ri.group.name))
+            saveResume(file)
             continue
         if ri.torrent.format != 'FLAC':
             log.info('Group "{0}" is not in FLAC format. Skipping..'.format(ri.group.name))
@@ -309,6 +311,7 @@ def main():
             continue
         if ri.group.wikiBody == "":
             log.info('Group "{0}" does not have an album description. Skipping..'.format(ri.group.name))
+            saveResume(file)
             continue
         
         #Open session
@@ -326,6 +329,7 @@ def main():
                 continue
         except:
             log.info('Artist not found: {0}'.format(ri.group.musicInfo.artists[0].name))
+            saveResume(file)
             if requestUpload(ri, auto=args.auto):
                 loadData(ri)
                 dataPath = uploadTorrent(ri, session)
@@ -335,8 +339,7 @@ def main():
         remoteGrp = findBestGroup(ri, artist) #Closest matching group by artist
 
         #Save progress
-        resumeList.add(file)
-        saveResume()
+        saveResume(file)
 
         #Update user
         if remoteGrp.match == 101:
