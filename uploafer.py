@@ -248,7 +248,7 @@ def buildUpload(ri, torrent, auth):
         ("media", ri.torrent.media),  # Media source
         ("genre_tags", ri.group.tags[0]),  # blank - this is the dropdown of official tags
         ("tags", ", ".join(ri.group.tags)),  # classical, hip.hop, etc. (comma separated)
-        ("album_desc", html_to_bbcode.feed(ri.group.wikiBody).replace('\n\n', '\n')),
+        ("album_desc", html_to_bbcode.feed(ri.group.wikiBody).replace('\n\n', '')),
         ("release_desc", "Uploafed using version {0} from WCDID: {1}. ReleaseInfo available.".format(VERSION, ri.torrent.id))
     ]
     desc = "Uploafed using version {0} from WCDID: {1}. ReleaseInfo available.".format(VERSION, ri.torrent.id)
