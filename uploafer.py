@@ -262,6 +262,7 @@ def buildUpload(ri, torrent, auth):
 def importTorrent(torrentPath):
     try:
         if torrentPath is not None:
+            #There is a better way to do this
             log.info('Importing torrent into WM..')
             importExternal = os.path.join(WM2_ROOT, 'manage.py')
             command = [importExternal, 'import_external_what_torrent.py', '--base-dir', WORKING_ROOT, torrentPath]
@@ -333,7 +334,7 @@ def main():
             if requestUpload(ri, auto=args.auto):
                 loadData(ri)
                 dataPath = uploadTorrent(ri, session)
-                importTorrent(dataPath)
+                #importTorrent(dataPath)
             #TODO: Put better reporting / handling here (It's an UPLOAD!')
             continue
         remoteGrp = findBestGroup(ri, artist) #Closest matching group by artist
