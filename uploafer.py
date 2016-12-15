@@ -265,8 +265,8 @@ def importTorrent(torrentPath):
             log.info('Importing torrent into WM..')
             importExternal = os.path.join(WM2_ROOT, 'manage.py import_external_what_torrent.py')
             command = [importExternal, "--base-dir", WORKING_ROOT, torrentPath]
-            subprocess.run(command, stderr=subprocess.STDOUT)
-            
+            output = subprocess.check_output(command, stderr=subprocess.STDOUT)
+            print(output)
             # Cleanup
             #os.remove(torrentPath)
             #shutil.rmtree(dataPath)
