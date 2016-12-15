@@ -10,13 +10,15 @@ import subprocess
 import sys
 
 from fuzzywuzzy import fuzz
-
+from html2bbcode.parser import HTML2BBCode
 from settings import (ANNOUNCE, FUZZ_RATIO, PASSWORD, USERNAME, WM2_MEDIA,
                       WM2_ROOT, WORKING_ROOT)
 from whatapi import WhatAPI, ext_matcher, locate
 from wmapi import artistInfo, releaseInfo, torrentGroup
 
-VERSION = "0.1b"
+html_to_bbcode = HTML2BBCode()
+
+VERSION = "0.2b"
 gazelle_url = 'https://passtheheadphones.me/'
 resumeList = set([])
 potential_uploads = 0
@@ -185,29 +187,39 @@ def requestUpload(ri, remoteGrp, artist, auto=False):
 
 def uploadTorrent(ri, session):
     try:
-        dataPath = shutil.copytree(ri.torrent.fullPath, os.path.join(WORKING_ROOT, ri.torrent.filePath))
-        torrent = make_torrent(dataPath)
+        dataPath = os.path.join(WORKING_ROOT, ri.torrent.filePath)
+        if os.path.exists(dataPath):
+            shutil.rmtree(dataPath)
+        dataPath = shutil.copytree(ri.torrent.fullPath, dataPath)
+        torrent, torrentPath = make_torrent(dataPath)
         auth = session.request("index")['authkey']
         data, files = buildUpload(ri, torrent, auth)
         url = os.path.join(gazelle_url, 'upload.php')
         upload_headers = dict(headers)
         upload_headers["referer"] = url
         upload_headers["origin"] = url.rsplit("/", 1)[0]
-
+        r = session.session.post(url, data=data, files=files, headers=upload_headers)
+        if "torrent_comments" not in r.text:
+            log.error('Upload failed!')
+        else:
+            log.info('Upload successful.')
+            #TODO: Run import script here!!
+            quit()
+            os.remove(torrentPath)
+            shutil.rmtree(dataPath)
+        return dataPath
     except:
         raise
 
 def make_torrent(dataPath):
     killDSStore(dataPath) #Because Macs
-    torrent = dataPath + ".torrent"
-    if os.path.exists(torrent):
-        os.remove(torrent)
-    if not os.path.exists(os.path.dirname(torrent)):
-        os.path.makedirs(os.path.dirname(torrent))
-    command = ["mktorrent", "-p", "-s", "PTH", "-a", ANNOUNCE, "-o", torrent, dataPath]
+    torrentPath = dataPath + ".torrent"
+    if os.path.exists(torrentPath):
+        os.remove(torrentPath)
+    command = ["mktorrent", "-p", "-s", "PTH", "-a", ANNOUNCE, "-o", torrentPath, dataPath]
     subprocess.check_output(command, stderr=subprocess.STDOUT)
-    torrent = ('torrent.torrent', open(torrent, 'rb'), "application/octet-stream")
-    return torrent
+    torrent = ('torrent.torrent', open(torrentPath, 'rb'), "application/octet-stream")
+    return torrent, torrentPath
 
 def buildUpload(ri, torrent, auth):
     data = [
@@ -232,8 +244,8 @@ def buildUpload(ri, torrent, auth):
         ("genre_tags", ri.group.tags[0]),  # blank - this is the dropdown of official tags
         ("tags", ", ".join(ri.group.tags)),  # classical, hip.hop, etc. (comma separated)
         ("image", ri.group.wikiImage),  #TODO: What if this is a whatimg link??
-        ("album_desc", ri.group.wikiBody),
-        ("release_desc", "Uploafed using version {0} from WCDID: {1}. ReleaseInfo available.".format(VERSION, ri.group.id)) #TODO: You are better than this
+        ("album_desc", html_to_bbcode.feed(ri.group.wikiBody).replace('\n\n', '\n')),
+        ("release_desc", "Uploafed using version {0} from WCDID: {1}. ReleaseInfo available.".format(VERSION, ri.group.id))
     ]
     data.extend(ri.group.musicInfo.uploaddata)
     files = []
@@ -241,6 +253,13 @@ def buildUpload(ri, torrent, auth):
         files.append(("logfiles[]", logfile))
     files.append(("file_input", torrent))
     return data, files
+
+def importTorrent(dataPath):
+    try:
+        log.info('Importing torrent into WM..')
+        importExternal = os.path.join(WM2_ROOT, 'manage.py import_external_what_torrent.py')
+        command = [importExternal, "--base-dir", dataPath]
+        print(subprocess.check_output(command, stderr=subprocess.STDOUT))
 
 def saveResume():
     #TODO: 
@@ -307,7 +326,8 @@ def main():
             #TODO: Add to list of potential trumping opportunities
         elif requestUpload(ri, remoteGrp, artist, args.auto):
             loadData(ri)
-            uploadTorrent(ri, session)
+            dataPath = uploadTorrent(ri, session)
+            importTorrent(dataPath)
         else:
             print('Moving on..')
         
