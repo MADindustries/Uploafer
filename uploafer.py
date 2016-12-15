@@ -18,7 +18,7 @@ from wmapi import artistInfo, releaseInfo, torrentGroup
 
 html_to_bbcode = HTML2BBCode()
 
-VERSION = "0.5b"
+VERSION = "0.6b"
 gazelle_url = 'https://passtheheadphones.me/'
 resumeList = set([])
 potential_uploads = 0
@@ -250,8 +250,13 @@ def buildUpload(ri, torrent, auth):
         ("tags", ", ".join(ri.group.tags)),  # classical, hip.hop, etc. (comma separated)
         ("image", ri.group.wikiImage),  #TODO: What if this is a whatimg link??
         ("album_desc", html_to_bbcode.feed(ri.group.wikiBody).replace('\n\n', '\n')),
-        ("release_desc", "Uploafed using version {0} from WCDID: {1}. ReleaseInfo available.".format(VERSION, ri.group.id))
+        ("release_desc", "Uploafed using version {0} from WCDID: {1}. ReleaseInfo available.".format(VERSION, ri.torrent.id))
     ]
+    desc = "Uploafed using version {0} from WCDID: {1}. ReleaseInfo available.".format(VERSION, ri.torrent.id)
+    if ri.torrent.media == 'Vinyl':
+        data.append[('release_desc', ri.torrent.description + '\n\n' + desc)]
+    else:
+        data.append[('release_desc', desc)]
     data.extend(ri.group.musicInfo.uploaddata)
     files = []
     for logfile in ri.torrent.logFiles:
