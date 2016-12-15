@@ -170,20 +170,27 @@ def findBestGroup(ri, artist):
                     break
     return bestGrp
 
-def requestUpload(ri, remoteGrp, artist, auto=False):
+def requestUpload(ri, remoteGrp=None, artist=None, auto=False):
     global potential_uploads
     potential_uploads += 1
-    print('')
-    print('{4} - No match found for "{0}" [{1}/{2}]:  {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, ri.group.path, str(potential_uploads)))
-    print('Closest match ({0}% likeness): {1}'.format(remoteGrp.match, remoteGrp.groupName))
-    #Next line, what if more than one artist or secondary artist identifier?
     if auto:
         log.info("Auto mode disables upload.")
         return False
-    if query_yes_no('Do you want to upload to artist "{0}" [{1}]?'.format(ri.group.musicInfo.artists[0].name, artist.url)):
-        return True
+    print('')
+    if remoteGrp == None or artist == None:
+        print('{4} - No artist match found for "{0}" [{1}/{2}]:  {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, ri.group.path, str(potential_uploads)))
+        if query_yes_no('Do you want to upload and create new artist page "{0}"?'.format(ri.group.musicInfo.artists[0].name)):
+            return True
+        else:
+            return False
     else:
-        return False
+        print('{4} - No match found for "{0}" [{1}/{2}]:  {3}'.format(ri.group.name, ri.torrent.media, ri.torrent.encoding, ri.group.path, str(potential_uploads)))
+        print('Closest match ({0}% likeness): {1}'.format(remoteGrp.match, remoteGrp.groupName))
+        #Next line, what if more than one artist or secondary artist identifier?
+        if query_yes_no('Do you want to upload to artist "{0}" [{1}]?'.format(ri.group.musicInfo.artists[0].name, artist.url)):
+            return True
+        else:
+            return False
 
 def uploadTorrent(ri, session):
     try:
@@ -319,7 +326,7 @@ def main():
                 continue
         except:
             log.info('Artist not found: {0}'.format(ri.group.musicInfo.artists[0].name))
-            if requestUpload(ri, remoteGrp, artist, args.auto):
+            if requestUpload(ri, auto=args.auto):
                 loadData(ri)
                 dataPath = uploadTorrent(ri, session)
                 importTorrent(dataPath)
@@ -336,7 +343,7 @@ def main():
         elif remoteGrp.match >= FUZZ_RATIO:
             log.info('Probable ({0}%) match found for "{1}" [{2}/{3}]: {4}'.format(remoteGrp.match, ri.group.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
             #TODO: Add to list of potential trumping opportunities
-        elif requestUpload(ri, remoteGrp, artist, args.auto):
+        elif requestUpload(ri, remoteGrp, artist, auto=args.auto):
             loadData(ri)
             dataPath = uploadTorrent(ri, session)
             importTorrent(dataPath)
