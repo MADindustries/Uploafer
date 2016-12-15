@@ -18,7 +18,7 @@ from wmapi import artistInfo, releaseInfo, torrentGroup
 
 html_to_bbcode = HTML2BBCode()
 
-VERSION = "0.2b"
+VERSION = "0.3b"
 gazelle_url = 'https://passtheheadphones.me/'
 resumeList = set([])
 potential_uploads = 0
@@ -178,7 +178,7 @@ def requestUpload(ri, remoteGrp, artist, auto=False):
     print('Closest match ({0}% likeness): {1}'.format(remoteGrp.match, remoteGrp.groupName))
     #Next line, what if more than one artist or secondary artist identifier?
     if auto:
-        log.info("Upload not yet implemented.")
+        log.info("Auto mode disables upload.")
         return False
     if query_yes_no('Do you want to upload to artist "{0}" [{1}]?'.format(ri.group.musicInfo.artists[0].name, artist.url)):
         return True
@@ -201,13 +201,11 @@ def uploadTorrent(ri, session):
         r = session.session.post(url, data=data, files=files, headers=upload_headers)
         if "torrent_comments" not in r.text:
             log.error('Upload failed!')
+            return None
         else:
             log.info('Upload successful.')
             #TODO: Run import script here!!
-            quit()
-            os.remove(torrentPath)
-            shutil.rmtree(dataPath)
-        return dataPath
+            return torrentPath
     except:
         raise
 
@@ -254,12 +252,15 @@ def buildUpload(ri, torrent, auth):
     files.append(("file_input", torrent))
     return data, files
 
-def importTorrent(dataPath):
+def importTorrent(torrentPath):
     try:
-        log.info('Importing torrent into WM..')
-        importExternal = os.path.join(WM2_ROOT, 'manage.py import_external_what_torrent.py')
-        command = [importExternal, "--base-dir", dataPath]
-        print(subprocess.check_output(command, stderr=subprocess.STDOUT))
+        if torrentPath is not None:
+            log.info('Importing torrent into WM..')
+            importExternal = os.path.join(WM2_ROOT, 'manage.py import_external_what_torrent.py')
+            command = [importExternal, "--base-dir", WORKING_ROOT, torrentPath]
+            subprocess.run(command, stderr=subprocess.STDOUT)
+        else:
+            raise
     except:
         log.error('Error importing torrent into WM')
         raise
