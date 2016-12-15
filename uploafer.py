@@ -18,7 +18,7 @@ from wmapi import artistInfo, releaseInfo, torrentGroup
 
 html_to_bbcode = HTML2BBCode()
 
-VERSION = "0.6b"
+VERSION = "0.7b"
 gazelle_url = 'https://passtheheadphones.me/'
 resumeList = set([])
 potential_uploads = 0
@@ -248,7 +248,6 @@ def buildUpload(ri, torrent, auth):
         ("media", ri.torrent.media),  # Media source
         ("genre_tags", ri.group.tags[0]),  # blank - this is the dropdown of official tags
         ("tags", ", ".join(ri.group.tags)),  # classical, hip.hop, etc. (comma separated)
-        ("image", ri.group.wikiImage),  #TODO: What if this is a whatimg link??
         ("album_desc", html_to_bbcode.feed(ri.group.wikiBody).replace('\n\n', '\n')),
         ("release_desc", "Uploafed using version {0} from WCDID: {1}. ReleaseInfo available.".format(VERSION, ri.torrent.id))
     ]
@@ -256,7 +255,11 @@ def buildUpload(ri, torrent, auth):
     if ri.torrent.media == 'Vinyl':
         data.append[('release_desc', ri.torrent.description + '\n\n' + desc)]
     else:
-        data.append[('release_desc', desc)]
+        data.append(('release_desc', desc))
+    if 'whatimg' not in ri.group.wikiImage:
+        data.append(("image", ri.group.wikiImage))
+    else:
+        data.append(("image", ''))
     data.extend(ri.group.musicInfo.uploaddata)
     files = []
     for logfile in ri.torrent.logFiles:
@@ -364,7 +367,6 @@ def main():
         else:
             saveResume(file)
             print('Moving on..')
-        
             
     print('Potential Uploads: {0}'.format(str(potential_uploads)))
 
