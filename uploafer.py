@@ -263,8 +263,8 @@ def importTorrent(torrentPath):
     try:
         if torrentPath is not None:
             log.info('Importing torrent into WM..')
-            importExternal = os.path.join(WM2_ROOT, 'manage.py import_external_what_torrent.py')
-            command = [importExternal, "--base-dir", WORKING_ROOT, torrentPath]
+            importExternal = os.path.join(WM2_ROOT, 'manage.py')
+            command = [importExternal, 'import_external_what_torrent.py', '--base-dir', WORKING_ROOT, torrentPath]
             output = subprocess.check_output(command, stderr=subprocess.STDOUT)
             print(output)
             # Cleanup
