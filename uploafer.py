@@ -207,7 +207,14 @@ def uploadTorrent(ri, session):
         upload_headers["origin"] = url.rsplit("/", 1)[0]
         r = session.session.post(url, data=data, files=files, headers=upload_headers)
         if "torrent_comments" not in r.text:
-            log.error('Upload failed!')
+            try:
+                errorName = "failed-{0}.html".format(ri.torrent.id)
+                errorFile = open(os.path.join(WORKING_ROOT, errorName), 'w')
+                errorFile.write(r.text)
+                errorFile.close()
+                log.error('Upload failed! View request output at {0}'.format(errorName))
+            except:
+                log.error('Upload failed! Error saving log.')
             return None
         else:
             log.info('Upload successful.')
