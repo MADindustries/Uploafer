@@ -20,6 +20,7 @@ html_to_bbcode = HTML2BBCode()
 
 VERSION = "0.7b"
 gazelle_url = 'https://passtheheadphones.me/'
+args = ''
 resumeList = set([])
 potential_uploads = 0
 headers = {
@@ -37,6 +38,7 @@ headers = {
 # TODO: Proper error handling
 
 def parseArgs():
+    global args
     argparser = argparse.ArgumentParser(description='This is uploafer. Obviously. If you don\'t know what WM2 is, better not to know what uploafer is.')
     #argparser.add_argument('-u', '--username', help='Your PTH username', required=True)
     #argparser.add_argument('-p', '--password', help='Your PTH password', required=True)
@@ -48,6 +50,7 @@ def parseArgs():
     argparser.add_argument('-v', '--verbose', help='High level of verbosity for detailed info', action="store_true")
     argparser.add_argument('-r', '--resume', help="Resume where uploafer left off within the WM2 media directory.", action="store_true")
     argparser.add_argument('-a', '--auto', help='Don\'t use this.', action="store_true")
+    argparser.add_argument('-t', '--torrent', help = 'Use this flag to pass a specific torrent ID for processing.', default=None)
     args = argparser.parse_args()
     if args.debug:
         log.basicConfig(format="%(levelname)s: %(message)s", level=log.DEBUG)
@@ -57,7 +60,6 @@ def parseArgs():
         log.info("Verbose output.")
     else:
         log.basicConfig(format="%(levelname)s: %(message)s")
-    return args
 
 def query_yes_no(question, default="no"):
     valid = {"yes": True, "y": True, "ye": True,
@@ -82,10 +84,24 @@ def query_yes_no(question, default="no"):
             sys.stdout.write("Please respond with 'yes' or 'no' "
                              "(or 'y' or 'n').\n")
 
-def findRiFiles(wm2media, resume):
+def findRiFiles(wm2media):
     global resumeList
     try:
+        #TODO: Deduplicate this code
         riList = []
+        if args.torrent is not None:
+            path = os.path.join(wm2media, args.torrent)
+            if os.path.isdir(path):
+                if os.path.isfile(os.path.join(path, 'ReleaseInfo2.txt')):
+                    riList.append(path)
+                    return riList
+                else:
+                    log.warning('No ReleaseInfo file found for path "{0}"'.format(path))
+                    quit()
+            else:
+                log.warning('"{0}" is not a directory.'.format(path))
+                quit()
+
         for dir in os.listdir(wm2media):
             path = os.path.join(wm2media, dir)
             if os.path.isdir(path):
@@ -99,7 +115,7 @@ def findRiFiles(wm2media, resume):
         if os.path.isfile(path):
             with open(path, 'rb') as resFile:
                 resumeList = set(pickle.load(resFile))
-                if resume:
+                if args.resume:
                     riList = list(set(riList) - resumeList)
         else:
             log.warning('Cannot access "{0}"'.format(path))
@@ -170,10 +186,10 @@ def findBestGroup(ri, artist):
                     break
     return bestGrp
 
-def requestUpload(ri, remoteGrp=None, artist=None, auto=False):
+def requestUpload(ri, remoteGrp=None, artist=None):
     global potential_uploads
     potential_uploads += 1
-    if auto:
+    if args.auto:
         log.info("Auto mode disables upload.")
         return False
     print('')
@@ -303,10 +319,10 @@ def saveResume(file):
 
 def main():
     #Get args
-    args = parseArgs()
+    parseArgs()
 
     #Load file list and skip completed if required
-    riList = findRiFiles(WM2_MEDIA, args.resume)
+    riList = findRiFiles(WM2_MEDIA)
     #Check for existing torrents
     current = 0
     for file in riList:
@@ -348,7 +364,7 @@ def main():
         except:
             log.info('Artist not found: {0}'.format(ri.group.musicInfo.artists[0].name))
             saveResume(file)
-            if requestUpload(ri, auto=args.auto):
+            if requestUpload(ri):
                 loadData(ri)
                 dataPath = uploadTorrent(ri, session)
                 #importTorrent(dataPath)
@@ -368,7 +384,7 @@ def main():
             log.info('Probable ({0}%) match found for "{1}" [{2}/{3}]: {4}'.format(remoteGrp.match, ri.group.name, ri.torrent.media, ri.torrent.encoding, remoteGrp.url))
             saveResume(file)
             #TODO: Add to list of potential trumping opportunities
-        elif requestUpload(ri, remoteGrp, artist, auto=args.auto):
+        elif requestUpload(ri, remoteGrp, artist):
             saveResume(file)
             loadData(ri)
             dataPath = uploadTorrent(ri, session)
