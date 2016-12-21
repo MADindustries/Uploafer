@@ -281,7 +281,7 @@ def buildUpload(ri, torrent, auth):
         data.append(('release_desc', ri.torrent.description + '\n\n' + desc))
     else:
         data.append(('release_desc', desc))
-    if 'whatimg' not in ri.group.wikiImage:
+    if 'whatimg' not in ri.group.wikiImage and 'tinypic' not in ri.group.wikiImage:
         data.append(("image", ri.group.wikiImage))
     else:
         data.append(("image", ''))
