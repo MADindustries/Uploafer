@@ -231,7 +231,7 @@ def uploadTorrent(ri, session):
                 log.error('Upload failed! View request output at {0}'.format(errorName))
             except:
                 log.error('Upload failed! Error saving log.')
-            os.path.remove(torrentPath)
+            os.path.remove(dataPath + ".torrent")
             shutil.rmtree(dataPath)
             return None
         else:
