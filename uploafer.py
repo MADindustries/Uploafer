@@ -276,7 +276,10 @@ def buildUpload(ri, torrent, auth):
         ("album_desc", html_to_bbcode.feed(ri.group.wikiBody).replace('\n\r', '')),
     ]
     desc = "Uploafed using version {0} from WCDID: {1}. ReleaseInfo available.".format(VERSION, ri.torrent.id)
-    data.append(('release_desc', ri.torrent.description + '\n\n' + desc))
+    if len(ri.torrent.description) < 2:
+        data.append(('release_desc', desc))
+    else:
+        data.append(('release_desc', ri.torrent.description + '\n\n' + desc))
     if 'whatimg' not in ri.group.wikiImage and 'tinypic' not in ri.group.wikiImage:
         data.append(("image", ri.group.wikiImage))
     else:
