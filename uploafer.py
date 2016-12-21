@@ -18,7 +18,7 @@ from wmapi import artistInfo, releaseInfo, torrentGroup
 
 html_to_bbcode = HTML2BBCode()
 
-VERSION = "0.7b"
+VERSION = "0.8b"
 gazelle_url = 'https://passtheheadphones.me/'
 args = ''
 resumeList = set([])
@@ -274,13 +274,9 @@ def buildUpload(ri, torrent, auth):
         ("genre_tags", ri.group.tags[0]),  # blank - this is the dropdown of official tags
         ("tags", ", ".join(ri.group.tags)),  # classical, hip.hop, etc. (comma separated)
         ("album_desc", html_to_bbcode.feed(ri.group.wikiBody).replace('\n\r', '')),
-        ("release_desc", "Uploafed using version {0} from WCDID: {1}. ReleaseInfo available.".format(VERSION, ri.torrent.id))
     ]
     desc = "Uploafed using version {0} from WCDID: {1}. ReleaseInfo available.".format(VERSION, ri.torrent.id)
-    if ri.torrent.media == 'Vinyl':
-        data.append(('release_desc', ri.torrent.description + '\n\n' + desc))
-    else:
-        data.append(('release_desc', desc))
+    data.append(('release_desc', ri.torrent.description + '\n\n' + desc))
     if 'whatimg' not in ri.group.wikiImage and 'tinypic' not in ri.group.wikiImage:
         data.append(("image", ri.group.wikiImage))
     else:
