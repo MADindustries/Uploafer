@@ -14,12 +14,11 @@ from html2bbcode.parser import HTML2BBCode
 from settings import (ANNOUNCE, FUZZ_RATIO, PASSWORD, USERNAME, WM2_MEDIA,
                       WM2_ROOT, WORKING_ROOT)
 from whatapi import WhatAPI, ext_matcher, locate
-from wmapi import artistInfo, releaseInfo, torrentGroup
+from wmapi import artistInfo, releaseInfo, torrentGroup, gazelle_url
 
 html_to_bbcode = HTML2BBCode()
 
-VERSION = "0.8b"
-gazelle_url = 'https://passtheheadphones.me/'
+VERSION = "0.9b"
 args = ''
 resumeList = set([])
 potential_uploads = 0

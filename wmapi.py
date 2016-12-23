@@ -124,7 +124,6 @@ class releaseGroup(object):
         self.catalogueNumber = rg['catalogueNumber']
         if rg['releaseType'] in releaseTable:
             self.releaseType = releaseTable[rg['releaseType']]
-            print(self.releaseType)
         else:
             self.releaseType = rg['releaseType']
         self.categoryId = rg['categoryId']
