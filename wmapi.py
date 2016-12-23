@@ -2,6 +2,7 @@
 from abc import ABCMeta, abstractmethod
 
 gazelle_url = 'https://passtheheadphones.me/'
+releaseTable = {8: 19, 22: 18, 23: 17} #8 = DJ Mix, 22 = Concert Recording, 23 = Demo
 
 #Gazelle Format ArtistInfo
 class artistInfo(object):
@@ -121,7 +122,11 @@ class releaseGroup(object):
         self.name = rg['name']
         self.tags = rg['tags']
         self.catalogueNumber = rg['catalogueNumber']
-        self.releaseType = rg['releaseType']
+        if rg['releaseType'] in releaseTable:
+            self.releaseType = releaseTable[rg['releaseType']]
+            print(self.releaseType)
+        else:
+            self.releaseType = rg['releaseType']
         self.categoryId = rg['categoryId']
         self.wikiBody = rg['wikiBody']
         if rg['categoryId'] == 1:
