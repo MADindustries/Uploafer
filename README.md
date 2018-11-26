@@ -1,4 +1,4 @@
-# Uploafer #
+# Uploafer [WARNING: This tool is deprecated and VERY out of date. Please do not use. Code is here for reference. #
 ## For use by WM2 users only ##
 ### Stole a bit of code from here: https://bitbucket.org/whatbetter/autotunes ###
 
